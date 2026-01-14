@@ -1,108 +1,153 @@
 import React, { useState } from 'react';
-import MobileFrame from '@/components/MobileFrame';
-import BottomNavigation from '@/components/BottomNavigation';
-import FloatingAIButton from '@/components/FloatingAIButton';
+import Header from '@/components/layout/Header';
+import Footer from '@/components/layout/Footer';
+import FloatingChatButton from '@/components/layout/FloatingChatButton';
+import HeroSection from '@/components/sections/HeroSection';
+import FeaturesSection from '@/components/sections/FeaturesSection';
+import TravelersSection from '@/components/sections/TravelersSection';
+import FeedSection from '@/components/sections/FeedSection';
+import ItinerarySection from '@/components/sections/ItinerarySection';
+import SafetySection from '@/components/sections/SafetySection';
+import ExpenseSection from '@/components/sections/ExpenseSection';
+import ProfileSection from '@/components/sections/ProfileSection';
+import AIChatModal from '@/components/sections/AIChatModal';
 import OnboardingScreen from '@/components/screens/OnboardingScreen';
-import HomeFeedScreen from '@/components/screens/HomeFeedScreen';
-import ProfileScreen from '@/components/screens/ProfileScreen';
-import AIChatScreen from '@/components/screens/AIChatScreen';
-import ExploreScreen from '@/components/screens/ExploreScreen';
-import ChatListScreen from '@/components/screens/ChatListScreen';
-import MessagingScreen from '@/components/screens/MessagingScreen';
-import MatchScoreScreen from '@/components/screens/MatchScoreScreen';
-import ItineraryScreen from '@/components/screens/ItineraryScreen';
-import ExpenseSplitScreen from '@/components/screens/ExpenseSplitScreen';
-import EmergencyScreen from '@/components/screens/EmergencyScreen';
 
 const Index: React.FC = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [activeTab, setActiveTab] = useState('home');
+  const [isLoggedIn, setIsLoggedIn] = useState(true);
+  const [activeSection, setActiveSection] = useState('landing');
   const [showAIChat, setShowAIChat] = useState(false);
-  const [showMessaging, setShowMessaging] = useState(false);
-  const [showMatchScore, setShowMatchScore] = useState(false);
-  const [showItinerary, setShowItinerary] = useState(false);
-  const [showExpenseSplit, setShowExpenseSplit] = useState(false);
-  const [showEmergency, setShowEmergency] = useState(false);
-  const [selectedChatUser, setSelectedChatUser] = useState<string>('2');
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
-  const handleTabChange = (tab: string) => {
-    if (tab === 'ai') {
-      setShowAIChat(true);
-    } else {
-      setActiveTab(tab);
-    }
+  const handleNavigate = (section: string) => {
+    setActiveSection(section);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleOpenChat = (userId: string) => {
-    setSelectedChatUser(userId);
-    setShowMessaging(true);
+  const handleLogin = () => {
+    setShowLoginModal(true);
   };
 
-  const renderMainContent = () => {
-    // Full screen overlays
-    if (showAIChat) {
-      return <AIChatScreen onClose={() => setShowAIChat(false)} />;
-    }
-    if (showMessaging) {
-      return (
-        <MessagingScreen 
-          onBack={() => setShowMessaging(false)} 
-          chatWithId={selectedChatUser}
-        />
-      );
-    }
-    if (showMatchScore) {
-      return <MatchScoreScreen onBack={() => setShowMatchScore(false)} />;
-    }
-    if (showItinerary) {
-      return <ItineraryScreen onBack={() => setShowItinerary(false)} />;
-    }
-    if (showExpenseSplit) {
-      return <ExpenseSplitScreen onBack={() => setShowExpenseSplit(false)} />;
-    }
-    if (showEmergency) {
-      return <EmergencyScreen onBack={() => setShowEmergency(false)} />;
-    }
-
-    // Tab content
-    switch (activeTab) {
-      case 'home':
-        return <HomeFeedScreen />;
-      case 'explore':
-        return <ExploreScreen />;
-      case 'chat':
-        return <ChatListScreen onOpenChat={handleOpenChat} />;
-      case 'profile':
-        return <ProfileScreen />;
-      default:
-        return <HomeFeedScreen />;
-    }
+  const handleLoginComplete = () => {
+    setIsLoggedIn(true);
+    setShowLoginModal(false);
+    setActiveSection('home');
   };
 
-  // Show onboarding if not logged in
-  if (!isLoggedIn) {
+  // Login Modal
+  if (showLoginModal) {
     return (
-      <MobileFrame>
-        <OnboardingScreen onComplete={() => setIsLoggedIn(true)} />
-      </MobileFrame>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="w-full max-w-md bg-background rounded-3xl shadow-2xl overflow-hidden">
+          <OnboardingScreen onComplete={handleLoginComplete} />
+        </div>
+      </div>
     );
   }
 
-  // Show main app with navigation
-  const showNavAndFloating = !showAIChat && !showMessaging && !showMatchScore && 
-    !showItinerary && !showExpenseSplit && !showEmergency;
+  const renderContent = () => {
+    switch (activeSection) {
+      case 'landing':
+        return (
+          <>
+            <HeroSection 
+              onGetStarted={() => handleNavigate('home')} 
+              onExplore={() => handleNavigate('explore')}
+            />
+            <FeaturesSection />
+            <TravelersSection />
+            <ItinerarySection />
+            <SafetySection />
+          </>
+        );
+      case 'home':
+        return (
+          <div className="pt-20">
+            <FeedSection />
+          </div>
+        );
+      case 'explore':
+        return (
+          <div className="pt-20">
+            <TravelersSection />
+          </div>
+        );
+      case 'itinerary':
+        return (
+          <div className="pt-20">
+            <ItinerarySection />
+          </div>
+        );
+      case 'safety':
+        return (
+          <div className="pt-20">
+            <SafetySection />
+          </div>
+        );
+      case 'expenses':
+        return (
+          <div className="pt-20">
+            <ExpenseSection />
+          </div>
+        );
+      case 'profile':
+        return (
+          <div className="pt-20">
+            <ProfileSection />
+          </div>
+        );
+      case 'ai':
+        setShowAIChat(true);
+        setActiveSection('landing');
+        return (
+          <>
+            <HeroSection 
+              onGetStarted={() => handleNavigate('home')} 
+              onExplore={() => handleNavigate('explore')}
+            />
+            <FeaturesSection />
+          </>
+        );
+      default:
+        return (
+          <>
+            <HeroSection 
+              onGetStarted={() => handleNavigate('home')} 
+              onExplore={() => handleNavigate('explore')}
+            />
+            <FeaturesSection />
+          </>
+        );
+    }
+  };
 
   return (
-    <MobileFrame>
-      {renderMainContent()}
+    <div className="min-h-screen bg-background">
+      <Header 
+        activeSection={activeSection} 
+        onNavigate={handleNavigate}
+        isLoggedIn={isLoggedIn}
+        onLogin={handleLogin}
+      />
       
-      {showNavAndFloating && (
-        <>
-          <FloatingAIButton onClick={() => setShowAIChat(true)} />
-          <BottomNavigation activeTab={activeTab} onTabChange={handleTabChange} />
-        </>
-      )}
-    </MobileFrame>
+      <main>
+        {renderContent()}
+      </main>
+      
+      <Footer />
+      
+      {/* Floating AI Chat Button */}
+      <FloatingChatButton 
+        onClick={() => setShowAIChat(!showAIChat)} 
+        isOpen={showAIChat}
+      />
+      
+      {/* AI Chat Modal */}
+      <AIChatModal 
+        isOpen={showAIChat} 
+        onClose={() => setShowAIChat(false)} 
+      />
+    </div>
   );
 };
 
