@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button';
 interface HeroSectionProps {
   onGetStarted: () => void;
   onExplore: () => void;
+  isLoggedIn?: boolean;
 }
 
-const HeroSection: React.FC<HeroSectionProps> = ({ onGetStarted, onExplore }) => {
+const HeroSection: React.FC<HeroSectionProps> = ({ onGetStarted, onExplore, isLoggedIn }) => {
   const features = [
     { icon: Sparkles, label: 'AI-Powered Itineraries', color: 'text-primary' },
     { icon: Users, label: 'Find Travel Buddies', color: 'text-secondary' },
@@ -70,7 +71,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onGetStarted, onExplore }) =>
                 size="lg"
                 className="h-14 px-8 bg-white text-primary hover:bg-white/90 rounded-2xl text-lg font-semibold shadow-xl hover:shadow-2xl transition-all group"
               >
-                Get Started Free
+                {isLoggedIn ? 'Explore Now' : 'Get Started Free'}
                 <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
               </Button>
               <Button

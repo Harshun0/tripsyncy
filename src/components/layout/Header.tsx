@@ -27,7 +27,7 @@ const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, 
           {/* Logo */}
           <button 
             onClick={() => onNavigate('landing')}
-            className="flex items-center gap-2 group"
+            className="flex items-center gap-2 group flex-shrink-0"
           >
             <div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center shadow-glow group-hover:scale-105 transition-transform">
               <MapPin className="w-5 h-5 text-white" />
@@ -35,8 +35,8 @@ const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, 
             <span className="text-xl font-bold text-gradient hidden sm:block">TripSync</span>
           </button>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center gap-1">
+          {/* Desktop Navigation - Now in the center */}
+          <nav className="hidden lg:flex items-center gap-1 flex-1 justify-center mx-4">
             {navItems.map((item) => (
               <button
                 key={item.id}
@@ -53,11 +53,11 @@ const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, 
           </nav>
 
           {/* Right Section */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-shrink-0">
             {/* AI Button */}
             <Button
               onClick={() => onNavigate('ai')}
-              className="hidden sm:flex items-center gap-2 gradient-primary text-primary-foreground rounded-xl shadow-glow hover:shadow-lg transition-shadow"
+              className="flex items-center gap-2 gradient-primary text-primary-foreground rounded-xl shadow-glow hover:shadow-lg transition-shadow"
             >
               <Sparkles className="w-4 h-4" />
               <span className="hidden md:inline">Ask AI</span>

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import FloatingChatButton from '@/components/layout/FloatingChatButton';
+import FloatingMessagesButton from '@/components/layout/FloatingMessagesButton';
+import MessagesPanel from '@/components/layout/MessagesPanel';
 import HeroSection from '@/components/sections/HeroSection';
 import FeaturesSection from '@/components/sections/FeaturesSection';
 import TravelersSection from '@/components/sections/TravelersSection';
@@ -11,15 +12,20 @@ import SafetySection from '@/components/sections/SafetySection';
 import ExpenseSection from '@/components/sections/ExpenseSection';
 import ProfileSection from '@/components/sections/ProfileSection';
 import AIChatModal from '@/components/sections/AIChatModal';
-import OnboardingScreen from '@/components/screens/OnboardingScreen';
+import LoginModal from '@/components/modals/LoginModal';
 
 const Index: React.FC = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [activeSection, setActiveSection] = useState('landing');
   const [showAIChat, setShowAIChat] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showMessagesPanel, setShowMessagesPanel] = useState(false);
 
   const handleNavigate = (section: string) => {
+    if (section === 'ai') {
+      setShowAIChat(true);
+      return;
+    }
     setActiveSection(section);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -34,16 +40,18 @@ const Index: React.FC = () => {
     setActiveSection('home');
   };
 
-  // Login Modal
-  if (showLoginModal) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-        <div className="w-full max-w-md bg-background rounded-3xl shadow-2xl overflow-hidden">
-          <OnboardingScreen onComplete={handleLoginComplete} />
-        </div>
-      </div>
-    );
-  }
+  const handleGetStarted = () => {
+    if (isLoggedIn) {
+      handleNavigate('home');
+    } else {
+      setShowLoginModal(true);
+    }
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setActiveSection('landing');
+  };
 
   const renderContent = () => {
     switch (activeSection) {
@@ -51,8 +59,9 @@ const Index: React.FC = () => {
         return (
           <>
             <HeroSection 
-              onGetStarted={() => handleNavigate('home')} 
+              onGetStarted={handleGetStarted} 
               onExplore={() => handleNavigate('explore')}
+              isLoggedIn={isLoggedIn}
             />
             <FeaturesSection />
             <TravelersSection />
@@ -93,27 +102,16 @@ const Index: React.FC = () => {
       case 'profile':
         return (
           <div className="pt-20">
-            <ProfileSection />
+            <ProfileSection onLogout={handleLogout} />
           </div>
-        );
-      case 'ai':
-        setShowAIChat(true);
-        setActiveSection('landing');
-        return (
-          <>
-            <HeroSection 
-              onGetStarted={() => handleNavigate('home')} 
-              onExplore={() => handleNavigate('explore')}
-            />
-            <FeaturesSection />
-          </>
         );
       default:
         return (
           <>
             <HeroSection 
-              onGetStarted={() => handleNavigate('home')} 
+              onGetStarted={handleGetStarted} 
               onExplore={() => handleNavigate('explore')}
+              isLoggedIn={isLoggedIn}
             />
             <FeaturesSection />
           </>
@@ -136,16 +134,34 @@ const Index: React.FC = () => {
       
       <Footer />
       
-      {/* Floating AI Chat Button */}
-      <FloatingChatButton 
-        onClick={() => setShowAIChat(!showAIChat)} 
-        isOpen={showAIChat}
-      />
+      {/* Floating Messages Button (only show when logged in) */}
+      {isLoggedIn && (
+        <>
+          <FloatingMessagesButton 
+            onClick={() => setShowMessagesPanel(!showMessagesPanel)} 
+            isOpen={showMessagesPanel}
+            unreadCount={2}
+          />
+          
+          {/* Messages Panel */}
+          <MessagesPanel 
+            isOpen={showMessagesPanel} 
+            onClose={() => setShowMessagesPanel(false)} 
+          />
+        </>
+      )}
       
       {/* AI Chat Modal */}
       <AIChatModal 
         isOpen={showAIChat} 
         onClose={() => setShowAIChat(false)} 
+      />
+
+      {/* Login Modal */}
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        onComplete={handleLoginComplete}
       />
     </div>
   );
