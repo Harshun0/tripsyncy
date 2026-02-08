@@ -1,18 +1,126 @@
 import React, { useState } from 'react';
-import { MapPin, Clock, Wallet, ChevronDown, ChevronUp, Sparkles, Calendar, ArrowRight } from 'lucide-react';
+import { MapPin, Clock, Wallet, ChevronDown, ChevronUp, Sparkles, Calendar, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { itineraryDays } from '@/data/dummyProfiles';
+import { toast } from '@/hooks/use-toast';
+
+interface GeneratedDay {
+  day: number;
+  title: string;
+  activities: {
+    time: string;
+    activity: string;
+    cost: number;
+    tips?: string;
+  }[];
+}
+
+interface GeneratedItinerary {
+  destination: string;
+  duration: string;
+  totalBudget: number;
+  currency: string;
+  summary: string;
+  days: GeneratedDay[];
+  tips: string[];
+}
 
 const ItinerarySection: React.FC = () => {
   const [expandedDay, setExpandedDay] = useState<number | null>(1);
   const [destination, setDestination] = useState('');
   const [days, setDays] = useState('');
   const [budget, setBudget] = useState('');
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedItinerary, setGeneratedItinerary] = useState<GeneratedItinerary | null>(null);
+  const [showGenerated, setShowGenerated] = useState(false);
   
-  const totalCost = itineraryDays.reduce(
-    (total, day) => total + day.activities.reduce((sum, act) => sum + act.cost, 0),
-    0
-  );
+  const displayDays = showGenerated && generatedItinerary ? generatedItinerary.days : itineraryDays;
+  
+  const totalCost = showGenerated && generatedItinerary 
+    ? generatedItinerary.totalBudget
+    : itineraryDays.reduce(
+        (total, day) => total + day.activities.reduce((sum, act) => sum + act.cost, 0),
+        0
+      );
+
+  const toggleInterest = (interest: string) => {
+    setSelectedInterests(prev => 
+      prev.includes(interest) 
+        ? prev.filter(i => i !== interest)
+        : [...prev, interest]
+    );
+  };
+
+  const handleGenerate = async () => {
+    if (!destination.trim()) {
+      toast({
+        title: "Missing destination",
+        description: "Please enter a destination to generate an itinerary.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!days || parseInt(days) < 1) {
+      toast({
+        title: "Invalid days",
+        description: "Please enter a valid number of days.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+    
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-travel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          type: 'itinerary',
+          destination,
+          days: parseInt(days),
+          budget: budget || '20000',
+          interests: selectedInterests.length > 0 ? selectedInterests : ['general sightseeing'],
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate itinerary');
+      }
+
+      const result = await response.json();
+      
+      if (result.type === 'itinerary' && result.data) {
+        setGeneratedItinerary(result.data);
+        setShowGenerated(true);
+        setExpandedDay(1);
+        toast({
+          title: "Itinerary Generated! 🎉",
+          description: `Your ${days}-day ${destination} itinerary is ready.`,
+        });
+      } else {
+        toast({
+          title: "Itinerary Generated",
+          description: result.content || "Your travel plan is ready!",
+        });
+      }
+    } catch (error) {
+      console.error('Error generating itinerary:', error);
+      toast({
+        title: "Generation failed",
+        description: error instanceof Error ? error.message : "Failed to generate itinerary. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   return (
     <section className="py-20 lg:py-32 bg-background">
@@ -62,6 +170,8 @@ const ItinerarySection: React.FC = () => {
                         value={days}
                         onChange={(e) => setDays(e.target.value)}
                         placeholder="5"
+                        min="1"
+                        max="30"
                         className="input-field pl-12"
                       />
                     </div>
@@ -87,7 +197,13 @@ const ItinerarySection: React.FC = () => {
                     {['Adventure', 'Food', 'Culture', 'Nature', 'Beach', 'Nightlife'].map((interest) => (
                       <button
                         key={interest}
-                        className="px-4 py-2 rounded-full text-sm font-medium bg-muted hover:bg-primary/10 hover:text-primary transition-colors"
+                        type="button"
+                        onClick={() => toggleInterest(interest)}
+                        className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                          selectedInterests.includes(interest)
+                            ? 'gradient-primary text-white'
+                            : 'bg-muted hover:bg-primary/10 hover:text-primary'
+                        }`}
                       >
                         {interest}
                       </button>
@@ -95,9 +211,22 @@ const ItinerarySection: React.FC = () => {
                   </div>
                 </div>
 
-                <Button className="w-full h-14 mt-4 gradient-primary text-primary-foreground rounded-2xl text-lg font-semibold shadow-glow hover:shadow-lg transition-shadow">
-                  <Sparkles className="w-5 h-5 mr-2" />
-                  Generate AI Itinerary
+                <Button 
+                  onClick={handleGenerate}
+                  disabled={isGenerating}
+                  className="w-full h-14 mt-4 gradient-primary text-primary-foreground rounded-2xl text-lg font-semibold shadow-glow hover:shadow-lg transition-shadow disabled:opacity-70"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5 mr-2" />
+                      Generate AI Itinerary
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
@@ -109,21 +238,32 @@ const ItinerarySection: React.FC = () => {
             <div className="travel-card p-6 bg-gradient-to-br from-primary/5 to-accent/5">
               <div className="flex items-center gap-2 mb-4">
                 <Sparkles className="w-5 h-5 text-primary" />
-                <span className="text-sm font-medium text-primary">AI Generated Sample</span>
+                <span className="text-sm font-medium text-primary">
+                  {showGenerated ? 'AI Generated Itinerary' : 'AI Generated Sample'}
+                </span>
               </div>
               
-              <h3 className="text-2xl font-bold text-foreground mb-3">5 Days in Goa 🏖️</h3>
+              <h3 className="text-2xl font-bold text-foreground mb-3">
+                {showGenerated && generatedItinerary 
+                  ? `${generatedItinerary.duration} in ${generatedItinerary.destination}`
+                  : '5 Days in Goa 🏖️'
+                }
+              </h3>
               
               <div className="flex items-center gap-6 text-muted-foreground mb-4">
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4" />
-                  <span>Goa, India</span>
+                  <span>{showGenerated && generatedItinerary ? generatedItinerary.destination : 'Goa, India'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4" />
-                  <span>5 Days</span>
+                  <span>{showGenerated && generatedItinerary ? generatedItinerary.duration : '5 Days'}</span>
                 </div>
               </div>
+
+              {showGenerated && generatedItinerary?.summary && (
+                <p className="text-sm text-muted-foreground mb-4">{generatedItinerary.summary}</p>
+              )}
 
               <div className="p-4 bg-primary/10 rounded-2xl flex items-center justify-between">
                 <div>
@@ -136,7 +276,7 @@ const ItinerarySection: React.FC = () => {
 
             {/* Day-wise Itinerary */}
             <div className="space-y-3">
-              {itineraryDays.map((day) => (
+              {displayDays.map((day) => (
                 <div key={day.day} className="travel-card">
                   <button
                     onClick={() => setExpandedDay(expandedDay === day.day ? null : day.day)}
@@ -181,6 +321,9 @@ const ItinerarySection: React.FC = () => {
                               )}
                             </div>
                             <p className="text-sm text-foreground mt-0.5">{activity.activity}</p>
+                            {'tips' in activity && (activity as { tips?: string }).tips && (
+                              <p className="text-xs text-muted-foreground mt-1 italic">💡 {(activity as { tips?: string }).tips}</p>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -189,6 +332,21 @@ const ItinerarySection: React.FC = () => {
                 </div>
               ))}
             </div>
+
+            {/* Tips Section */}
+            {showGenerated && generatedItinerary?.tips && generatedItinerary.tips.length > 0 && (
+              <div className="travel-card p-6">
+                <h4 className="font-semibold text-foreground mb-3">💡 Travel Tips</h4>
+                <ul className="space-y-2">
+                  {generatedItinerary.tips.map((tip, index) => (
+                    <li key={index} className="text-sm text-muted-foreground flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      {tip}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
       </div>

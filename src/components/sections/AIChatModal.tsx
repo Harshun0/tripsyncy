@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Send, Sparkles, MapPin, Users, Calendar, Wallet, AlertTriangle, WifiOff, Mic } from 'lucide-react';
+import { X, Send, Sparkles, MapPin, Users, Calendar, Wallet, AlertTriangle, WifiOff, Mic, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toast } from '@/hooks/use-toast';
 
 interface Message {
   id: string;
@@ -8,6 +9,7 @@ interface Message {
   content: string;
   timestamp: string;
   actions?: { label: string; icon: React.ElementType }[];
+  isLoading?: boolean;
 }
 
 interface AIChatModalProps {
@@ -30,7 +32,7 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
     },
   ]);
   const [inputValue, setInputValue] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -41,8 +43,8 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSend = () => {
-    if (!inputValue.trim()) return;
+  const handleSend = async () => {
+    if (!inputValue.trim() || isLoading) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -51,63 +53,91 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
       timestamp: 'Just now',
     };
 
-    setMessages([...messages, userMessage]);
+    const loadingMessage: Message = {
+      id: (Date.now() + 1).toString(),
+      type: 'ai',
+      content: '',
+      timestamp: 'Just now',
+      isLoading: true,
+    };
+
+    setMessages(prev => [...prev, userMessage, loadingMessage]);
+    const userInput = inputValue;
     setInputValue('');
-    setIsTyping(true);
+    setIsLoading(true);
 
-    setTimeout(() => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-travel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          type: 'chat',
+          destination: userInput, // Using destination field for the message in chat mode
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to get AI response');
+      }
+
+      const result = await response.json();
+      
       const aiResponse: Message = {
-        id: (Date.now() + 1).toString(),
+        id: (Date.now() + 2).toString(),
         type: 'ai',
-        content: getAIResponse(inputValue),
+        content: result.content || result.data?.summary || "I'm here to help! Could you tell me more about what you're looking for?",
         timestamp: 'Just now',
-        actions: getResponseActions(inputValue),
+        actions: getResponseActions(userInput),
       };
-      setMessages((prev) => [...prev, aiResponse]);
-      setIsTyping(false);
-    }, 1500);
-  };
 
-  const getAIResponse = (input: string): string => {
-    const lowerInput = input.toLowerCase();
-    
-    if (lowerInput.includes('goa') || lowerInput.includes('trip') || lowerInput.includes('plan')) {
-      return "🏖️ Great choice! Goa is amazing! Based on your preferences, I've prepared a 5-day itinerary:\n\n**Day 1:** Arrive → North Goa beaches → Sunset at Chapora Fort\n\n**Day 2:** Water sports at Calangute → Dolphin watching\n\n**Day 3:** Heritage walk in Old Goa → Spice plantation\n\n**Day 4:** South Goa exploration → Palolem Beach\n\n**Day 5:** Leisure → Departure\n\n💰 Estimated Budget: ₹18,000 per person\n\nWould you like me to refine this itinerary?";
+      setMessages(prev => prev.filter(m => !m.isLoading).concat(aiResponse));
+    } catch (error) {
+      console.error('Error getting AI response:', error);
+      
+      // Remove loading message and show error
+      setMessages(prev => prev.filter(m => !m.isLoading));
+      
+      toast({
+        title: "AI Response Failed",
+        description: error instanceof Error ? error.message : "Failed to get AI response. Please try again.",
+        variant: "destructive",
+      });
+
+      // Add a fallback response
+      const fallbackResponse: Message = {
+        id: (Date.now() + 2).toString(),
+        type: 'ai',
+        content: "I apologize, but I'm having trouble connecting right now. Please try again in a moment, or you can explore the app's features directly using the navigation menu.",
+        timestamp: 'Just now',
+      };
+      setMessages(prev => [...prev, fallbackResponse]);
+    } finally {
+      setIsLoading(false);
     }
-    
-    if (lowerInput.includes('nearby') || lowerInput.includes('travelers')) {
-      return "📍 I found 6 travelers near you!\n\n**Within 5 km:**\n• Rahul M. (1.2 km) - 65% match\n• Priya S. (2.5 km) - 87% match\n\n**Within 10 km:**\n• Arjun P. (4.8 km) - 92% match\n• Ananya R. (8.2 km) - 78% match\n\nYour highest match is Arjun (92%)! You both love budget travel and food adventures.";
-    }
-    
-    if (lowerInput.includes('expense') || lowerInput.includes('split')) {
-      return "💸 Here's your group expense summary:\n\n**Total Trip Expense:** ₹20,100\n\n**Who Owes Whom:**\n• You owe Arjun: ₹2,800\n• Priya owes you: ₹1,100\n\n**Pending Payments:** 2\n**Completed:** 2\n\nShall I send UPI payment reminders?";
-    }
-    
-    if (lowerInput.includes('sos') || lowerInput.includes('emergency')) {
-      return "🚨 **Emergency Mode Activated**\n\nI'm here to help. You can:\n\n• One-tap SOS to alert emergency contacts\n• Share live location with your group\n• Find nearest hospital (2.3 km)\n• Find nearest police station (1.8 km)\n\nStay calm. Your safety is my priority. Should I activate emergency protocols?";
-    }
-    
-    return "I understand! Let me help you with that. Could you tell me more about:\n\n• Your destination preference?\n• Travel dates?\n• Budget range?\n• Any specific interests?\n\nThe more details you share, the better I can assist! 🌟";
   };
 
   const getResponseActions = (input: string): { label: string; icon: React.ElementType }[] | undefined => {
     const lowerInput = input.toLowerCase();
     
-    if (lowerInput.includes('goa') || lowerInput.includes('trip')) {
+    if (lowerInput.includes('trip') || lowerInput.includes('travel') || lowerInput.includes('plan') || lowerInput.includes('itinerary')) {
       return [
-        { label: 'View Itinerary', icon: Calendar },
-        { label: 'Adjust Budget', icon: Wallet },
+        { label: 'Generate Itinerary', icon: Calendar },
+        { label: 'Set Budget', icon: Wallet },
       ];
     }
     
-    if (lowerInput.includes('nearby') || lowerInput.includes('travelers')) {
+    if (lowerInput.includes('nearby') || lowerInput.includes('travelers') || lowerInput.includes('people')) {
       return [
         { label: 'View All', icon: Users },
         { label: 'Send Request', icon: MapPin },
       ];
     }
     
-    if (lowerInput.includes('sos') || lowerInput.includes('emergency')) {
+    if (lowerInput.includes('sos') || lowerInput.includes('emergency') || lowerInput.includes('help') || lowerInput.includes('safe')) {
       return [
         { label: 'Activate SOS', icon: AlertTriangle },
         { label: 'Share Location', icon: MapPin },
@@ -161,7 +191,8 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
               <button
                 key={label}
                 onClick={() => handleQuickAction(label)}
-                className="flex items-center gap-2 px-4 py-2 bg-card rounded-full text-sm font-medium whitespace-nowrap shadow-sm hover:shadow-md transition-all hover:bg-primary/5"
+                disabled={isLoading}
+                className="flex items-center gap-2 px-4 py-2 bg-card rounded-full text-sm font-medium whitespace-nowrap shadow-sm hover:shadow-md transition-all hover:bg-primary/5 disabled:opacity-50"
               >
                 <Icon className="w-4 h-4 text-primary" />
                 {label}
@@ -192,11 +223,19 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
                     <span className="text-xs font-medium text-primary">TripSync AI</span>
                   </div>
                 )}
-                <p className={`text-sm whitespace-pre-line leading-relaxed ${message.type === 'ai' ? 'text-foreground' : ''}`}>
-                  {message.content}
-                </p>
                 
-                {message.actions && (
+                {message.isLoading ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                    <span className="text-sm text-muted-foreground">Thinking...</span>
+                  </div>
+                ) : (
+                  <p className={`text-sm whitespace-pre-line leading-relaxed ${message.type === 'ai' ? 'text-foreground' : ''}`}>
+                    {message.content}
+                  </p>
+                )}
+                
+                {message.actions && !message.isLoading && (
                   <div className="flex flex-wrap gap-2 mt-4">
                     {message.actions.map(({ label, icon: Icon }) => (
                       <button
@@ -211,29 +250,14 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
                   </div>
                 )}
                 
-                <p className={`text-[10px] mt-3 ${message.type === 'user' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                  {message.timestamp}
-                </p>
+                {!message.isLoading && (
+                  <p className={`text-[10px] mt-3 ${message.type === 'user' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                    {message.timestamp}
+                  </p>
+                )}
               </div>
             </div>
           ))}
-          
-          {isTyping && (
-            <div className="flex justify-start animate-fade-in">
-              <div className="bg-card shadow-md rounded-2xl rounded-bl-md px-5 py-4 border border-border">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 gradient-primary rounded-full flex items-center justify-center">
-                    <Sparkles className="w-3 h-3 text-white" />
-                  </div>
-                  <div className="flex gap-1">
-                    <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
           
           <div ref={messagesEndRef} />
         </div>
@@ -252,14 +276,19 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                 placeholder="Ask TripSync AI anything..."
                 className="input-field h-12"
+                disabled={isLoading}
               />
             </div>
             <Button
               onClick={handleSend}
-              disabled={!inputValue.trim()}
+              disabled={!inputValue.trim() || isLoading}
               className="w-12 h-12 p-0 rounded-full gradient-primary shadow-glow"
             >
-              <Send className="w-5 h-5" />
+              {isLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Send className="w-5 h-5" />
+              )}
             </Button>
           </div>
         </div>
