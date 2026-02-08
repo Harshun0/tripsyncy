@@ -1,8 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Settings, Edit2, MapPin, BadgeCheck, Award, Wallet, Heart, Mountain, Utensils, Compass, Sunrise, Camera, Share2, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import ProfileSettingsModal from '@/components/modals/ProfileSettingsModal';
+import EditProfileModal from '@/components/modals/EditProfileModal';
 
-const ProfileSection: React.FC = () => {
+interface ProfileSectionProps {
+  onLogout?: () => void;
+}
+
+const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout }) => {
+  const [showSettings, setShowSettings] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+
   const userProfile = {
     name: 'You',
     displayName: 'Traveler',
@@ -69,11 +78,20 @@ const ProfileSection: React.FC = () => {
           
           {/* Action Buttons */}
           <div className="absolute bottom-4 right-4 flex gap-2">
-            <Button variant="outline" size="sm" className="rounded-full bg-white/90 backdrop-blur-sm">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="rounded-full bg-white/90 backdrop-blur-sm"
+              onClick={() => setShowSettings(true)}
+            >
               <Settings className="w-4 h-4 mr-2" />
               Settings
             </Button>
-            <Button size="sm" className="rounded-full gradient-primary text-white">
+            <Button 
+              size="sm" 
+              className="rounded-full gradient-primary text-white"
+              onClick={() => setShowEditProfile(true)}
+            >
               <Edit2 className="w-4 h-4 mr-2" />
               Edit Profile
             </Button>
@@ -192,6 +210,23 @@ const ProfileSection: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Settings Modal */}
+      <ProfileSettingsModal 
+        isOpen={showSettings} 
+        onClose={() => setShowSettings(false)}
+        onLogout={() => {
+          setShowSettings(false);
+          onLogout?.();
+        }}
+      />
+
+      {/* Edit Profile Modal */}
+      <EditProfileModal 
+        isOpen={showEditProfile} 
+        onClose={() => setShowEditProfile(false)}
+        onSave={() => setShowEditProfile(false)}
+      />
     </section>
   );
 };
