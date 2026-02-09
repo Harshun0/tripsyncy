@@ -17,6 +17,39 @@ interface AIChatModalProps {
   onClose: () => void;
 }
 
+// Format AI response: strip markdown ***, bold key points, clean up
+const formatAIResponse = (text: string): React.ReactNode[] => {
+  // Remove excessive asterisks
+  let cleaned = text.replace(/\*{3,}/g, '').replace(/\*\*/g, '').replace(/\*/g, '');
+  // Remove markdown headers
+  cleaned = cleaned.replace(/#{1,6}\s/g, '');
+  
+  const lines = cleaned.split('\n').filter(line => line.trim());
+  
+  return lines.map((line, i) => {
+    const trimmed = line.trim();
+    
+    // Bullet points
+    if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
+      const content = trimmed.replace(/^[-•]\s*/, '');
+      return <div key={i} className="flex gap-2 mt-1"><span>•</span><span>{content}</span></div>;
+    }
+    
+    // Numbered items
+    const numberedMatch = trimmed.match(/^(\d+)\.\s*(.*)/);
+    if (numberedMatch) {
+      return <div key={i} className="flex gap-2 mt-1"><span className="font-bold text-primary">{numberedMatch[1]}.</span><span>{numberedMatch[2]}</span></div>;
+    }
+    
+    // Lines ending with colon are headers/key points
+    if (trimmed.endsWith(':')) {
+      return <p key={i} className="font-bold mt-3 first:mt-0">{trimmed}</p>;
+    }
+    
+    return <p key={i} className="mt-1 first:mt-0">{trimmed}</p>;
+  });
+};
+
 const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -75,7 +108,7 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
         },
         body: JSON.stringify({
           type: 'chat',
-          destination: userInput, // Using destination field for the message in chat mode
+          destination: userInput,
         }),
       });
 
@@ -97,21 +130,16 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
       setMessages(prev => prev.filter(m => !m.isLoading).concat(aiResponse));
     } catch (error) {
       console.error('Error getting AI response:', error);
-      
-      // Remove loading message and show error
       setMessages(prev => prev.filter(m => !m.isLoading));
-      
       toast({
         title: "AI Response Failed",
         description: error instanceof Error ? error.message : "Failed to get AI response. Please try again.",
         variant: "destructive",
       });
-
-      // Add a fallback response
       const fallbackResponse: Message = {
         id: (Date.now() + 2).toString(),
         type: 'ai',
-        content: "I apologize, but I'm having trouble connecting right now. Please try again in a moment, or you can explore the app's features directly using the navigation menu.",
+        content: "I apologize, but I'm having trouble connecting right now. Please try again in a moment.",
         timestamp: 'Just now',
       };
       setMessages(prev => [...prev, fallbackResponse]);
@@ -122,28 +150,12 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
 
   const getResponseActions = (input: string): { label: string; icon: React.ElementType }[] | undefined => {
     const lowerInput = input.toLowerCase();
-    
     if (lowerInput.includes('trip') || lowerInput.includes('travel') || lowerInput.includes('plan') || lowerInput.includes('itinerary')) {
-      return [
-        { label: 'Generate Itinerary', icon: Calendar },
-        { label: 'Set Budget', icon: Wallet },
-      ];
+      return [{ label: 'Generate Itinerary', icon: Calendar }, { label: 'Set Budget', icon: Wallet }];
     }
-    
     if (lowerInput.includes('nearby') || lowerInput.includes('travelers') || lowerInput.includes('people')) {
-      return [
-        { label: 'View All', icon: Users },
-        { label: 'Send Request', icon: MapPin },
-      ];
+      return [{ label: 'View All', icon: Users }, { label: 'Send Request', icon: MapPin }];
     }
-    
-    if (lowerInput.includes('sos') || lowerInput.includes('emergency') || lowerInput.includes('help') || lowerInput.includes('safe')) {
-      return [
-        { label: 'Activate SOS', icon: AlertTriangle },
-        { label: 'Share Location', icon: MapPin },
-      ];
-    }
-    
     return undefined;
   };
 
@@ -230,9 +242,9 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
                     <span className="text-sm text-muted-foreground">Thinking...</span>
                   </div>
                 ) : (
-                  <p className={`text-sm whitespace-pre-line leading-relaxed ${message.type === 'ai' ? 'text-foreground' : ''}`}>
-                    {message.content}
-                  </p>
+                  <div className={`text-sm leading-relaxed ${message.type === 'ai' ? 'text-foreground' : ''}`}>
+                    {message.type === 'ai' ? formatAIResponse(message.content) : message.content}
+                  </div>
                 )}
                 
                 {message.actions && !message.isLoading && (
@@ -258,7 +270,6 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
               </div>
             </div>
           ))}
-          
           <div ref={messagesEndRef} />
         </div>
 
@@ -284,11 +295,7 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
               disabled={!inputValue.trim() || isLoading}
               className="w-12 h-12 p-0 rounded-full gradient-primary shadow-glow"
             >
-              {isLoading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Send className="w-5 h-5" />
-              )}
+              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
             </Button>
           </div>
         </div>

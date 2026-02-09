@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
-import { Settings, Edit2, MapPin, BadgeCheck, Award, Wallet, Heart, Mountain, Utensils, Compass, Sunrise, Camera, Share2, MessageCircle } from 'lucide-react';
+import { Settings, Edit2, MapPin, BadgeCheck, Award, Wallet, Heart, Mountain, Utensils, Compass, Sunrise, Camera, Share2, MessageCircle, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ProfileSettingsModal from '@/components/modals/ProfileSettingsModal';
 import EditProfileModal from '@/components/modals/EditProfileModal';
+import { toast } from '@/hooks/use-toast';
 
 interface ProfileSectionProps {
   onLogout?: () => void;
+  onOpenMessages?: () => void;
 }
 
-const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout }) => {
+const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessages }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
 
@@ -45,22 +47,29 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout }) => {
     { destination: 'Rishikesh', image: 'https://images.unsplash.com/photo-1545158535-c3f7168c28b6?w=300&h=200&fit=crop', date: 'Sep 2024' },
   ];
 
+  const handleShareProfile = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: `${userProfile.displayName} on TripSync`,
+        text: userProfile.bio,
+        url: window.location.href,
+      });
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      toast({ title: 'Profile link copied to clipboard! 📋' });
+    }
+  };
+
   return (
     <section className="py-20 lg:py-32 bg-background">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Profile Header */}
         <div className="relative mb-12">
-          {/* Cover Image */}
           <div className="h-48 sm:h-64 rounded-3xl overflow-hidden">
-            <img
-              src={userProfile.coverImage}
-              alt="Cover"
-              className="w-full h-full object-cover"
-            />
+            <img src={userProfile.coverImage} alt="Cover" className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent rounded-3xl" />
           </div>
           
-          {/* Avatar & Info */}
           <div className="absolute -bottom-16 left-8 flex items-end gap-6">
             <div className="relative">
               <img
@@ -76,19 +85,18 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout }) => {
             </div>
           </div>
           
-          {/* Action Buttons */}
           <div className="absolute bottom-4 right-4 flex gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="rounded-full bg-white/90 backdrop-blur-sm"
               onClick={() => setShowSettings(true)}
             >
               <Settings className="w-4 h-4 mr-2" />
               Settings
             </Button>
-            <Button 
-              size="sm" 
+            <Button
+              size="sm"
               className="rounded-full gradient-primary text-white"
               onClick={() => setShowEditProfile(true)}
             >
@@ -98,9 +106,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout }) => {
           </div>
         </div>
 
-        {/* Profile Info */}
         <div className="mt-20 grid lg:grid-cols-3 gap-8">
-          {/* Left Column - Main Info */}
           <div className="lg:col-span-2 space-y-6">
             <div>
               <h1 className="text-3xl font-bold text-foreground">{userProfile.displayName}, {userProfile.age}</h1>
@@ -111,7 +117,6 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout }) => {
               <p className="text-foreground mt-4">{userProfile.bio}</p>
             </div>
 
-            {/* Stats */}
             <div className="grid grid-cols-3 gap-4">
               <div className="travel-card p-6 text-center">
                 <p className="text-3xl font-bold text-foreground">{userProfile.trips}</p>
@@ -127,7 +132,6 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout }) => {
               </div>
             </div>
 
-            {/* Recent Trips */}
             <div className="travel-card p-6">
               <h3 className="text-lg font-semibold text-foreground mb-4">Recent Trips</h3>
               <div className="grid sm:grid-cols-3 gap-4">
@@ -144,9 +148,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout }) => {
             </div>
           </div>
 
-          {/* Right Column - Preferences */}
           <div className="space-y-6">
-            {/* Budget & Personality */}
             <div className="grid grid-cols-2 gap-4">
               <div className="travel-card p-4">
                 <div className="flex items-center gap-2 mb-2">
@@ -164,7 +166,6 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout }) => {
               </div>
             </div>
 
-            {/* Interests */}
             <div className="travel-card p-6">
               <h4 className="font-semibold text-foreground mb-4">Interests</h4>
               <div className="flex flex-wrap gap-2">
@@ -180,15 +181,11 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout }) => {
               </div>
             </div>
 
-            {/* Badges */}
             <div className="travel-card p-6">
               <h4 className="font-semibold text-foreground mb-4">Travel Badges</h4>
               <div className="space-y-2">
                 {userProfile.badges.map((badge, index) => (
-                  <div 
-                    key={index} 
-                    className="flex items-center gap-3 p-3 bg-gradient-to-r from-primary/10 to-accent/10 rounded-xl"
-                  >
+                  <div key={index} className="flex items-center gap-3 p-3 bg-gradient-to-r from-primary/10 to-accent/10 rounded-xl">
                     <Award className="w-5 h-5 text-primary" />
                     <span className="text-sm font-medium text-foreground">{badge}</span>
                   </div>
@@ -196,36 +193,33 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout }) => {
               </div>
             </div>
 
-            {/* Action Buttons */}
             <div className="space-y-3">
-              <Button className="w-full h-12 gradient-primary text-primary-foreground rounded-xl font-semibold">
+              <Button onClick={handleShareProfile} className="w-full h-12 gradient-primary text-primary-foreground rounded-xl font-semibold">
                 <Share2 className="w-5 h-5 mr-2" />
                 Share Profile
               </Button>
-              <Button variant="outline" className="w-full h-12 rounded-xl font-semibold border-2 border-primary text-primary">
+              <Button onClick={onOpenMessages} variant="outline" className="w-full h-12 rounded-xl font-semibold border-2 border-primary text-primary">
                 <MessageCircle className="w-5 h-5 mr-2" />
                 Messages
+              </Button>
+              <Button onClick={onLogout} variant="outline" className="w-full h-12 rounded-xl font-semibold border-destructive text-destructive hover:bg-destructive/5">
+                <LogOut className="w-5 h-5 mr-2" />
+                Log Out
               </Button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Settings Modal */}
-      <ProfileSettingsModal 
-        isOpen={showSettings} 
+      <ProfileSettingsModal
+        isOpen={showSettings}
         onClose={() => setShowSettings(false)}
-        onLogout={() => {
-          setShowSettings(false);
-          onLogout?.();
-        }}
+        onLogout={() => { setShowSettings(false); onLogout?.(); }}
       />
-
-      {/* Edit Profile Modal */}
-      <EditProfileModal 
-        isOpen={showEditProfile} 
+      <EditProfileModal
+        isOpen={showEditProfile}
         onClose={() => setShowEditProfile(false)}
-        onSave={() => setShowEditProfile(false)}
+        onSave={() => { setShowEditProfile(false); toast({ title: 'Profile updated! ✅' }); }}
       />
     </section>
   );
