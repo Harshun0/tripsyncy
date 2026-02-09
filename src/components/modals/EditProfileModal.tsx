@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Camera, MapPin, Wallet, Heart, Mountain, Utensils, Compass, Sunrise, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toast } from '@/hooks/use-toast';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -36,8 +37,16 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, on
     }));
   };
 
+  const handleChangeAvatar = () => {
+    toast({ title: 'Profile photo updated! 📸', description: 'Your new avatar will be visible to other travelers.' });
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.displayName.trim()) {
+      toast({ title: 'Name is required', variant: 'destructive' });
+      return;
+    }
     onSave();
   };
 
@@ -46,20 +55,14 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, on
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
       <div className="w-full max-w-lg bg-background rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
-        {/* Header */}
         <div className="sticky top-0 glass-effect px-6 py-4 flex items-center justify-between border-b border-border z-10">
           <h2 className="text-xl font-bold text-foreground">Edit Profile</h2>
-          <button
-            onClick={onClose}
-            className="w-10 h-10 rounded-full hover:bg-muted flex items-center justify-center transition-colors"
-          >
+          <button onClick={onClose} className="w-10 h-10 rounded-full hover:bg-muted flex items-center justify-center transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Content */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Avatar */}
           <div className="flex justify-center">
             <div className="relative">
               <img
@@ -67,8 +70,9 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, on
                 alt="Profile"
                 className="w-28 h-28 rounded-full object-cover border-4 border-primary/20"
               />
-              <button 
+              <button
                 type="button"
+                onClick={handleChangeAvatar}
                 className="absolute bottom-0 right-0 w-10 h-10 gradient-primary rounded-full flex items-center justify-center shadow-lg"
               >
                 <Camera className="w-5 h-5 text-white" />
@@ -76,59 +80,33 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, on
             </div>
           </div>
 
-          {/* Basic Info */}
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">Display Name</label>
-              <input
-                type="text"
-                value={formData.displayName}
-                onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
-                className="input-field"
-              />
+              <input type="text" value={formData.displayName} onChange={(e) => setFormData({ ...formData, displayName: e.target.value })} className="input-field" />
             </div>
-
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">Bio</label>
-              <textarea
-                value={formData.bio}
-                onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                rows={3}
-                className="input-field resize-none"
-              />
+              <textarea value={formData.bio} onChange={(e) => setFormData({ ...formData, bio: e.target.value })} rows={3} className="input-field resize-none" />
             </div>
-
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
-                <MapPin className="w-4 h-4 inline mr-2" />
-                Location
+                <MapPin className="w-4 h-4 inline mr-2" />Location
               </label>
-              <input
-                type="text"
-                value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                className="input-field"
-              />
+              <input type="text" value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} className="input-field" />
             </div>
           </div>
 
-          {/* Budget Preference */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-3">
-              <Wallet className="w-4 h-4 inline mr-2" />
-              Travel Budget
+              <Wallet className="w-4 h-4 inline mr-2" />Travel Budget
             </label>
             <div className="grid grid-cols-3 gap-2">
               {['Budget', 'Mid-Range', 'Luxury'].map((option) => (
                 <button
-                  key={option}
-                  type="button"
+                  key={option} type="button"
                   onClick={() => setFormData({ ...formData, budget: option })}
-                  className={`py-3 rounded-xl text-sm font-medium transition-all ${
-                    formData.budget === option
-                      ? 'gradient-primary text-white'
-                      : 'bg-muted hover:bg-muted/80'
-                  }`}
+                  className={`py-3 rounded-xl text-sm font-medium transition-all ${formData.budget === option ? 'gradient-primary text-white' : 'bg-muted hover:bg-muted/80'}`}
                 >
                   {option}
                 </button>
@@ -136,23 +114,16 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, on
             </div>
           </div>
 
-          {/* Personality */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-3">
-              <Heart className="w-4 h-4 inline mr-2" />
-              Personality Type
+              <Heart className="w-4 h-4 inline mr-2" />Personality Type
             </label>
             <div className="grid grid-cols-3 gap-2">
               {['Introvert', 'Ambivert', 'Extrovert'].map((option) => (
                 <button
-                  key={option}
-                  type="button"
+                  key={option} type="button"
                   onClick={() => setFormData({ ...formData, personality: option })}
-                  className={`py-3 rounded-xl text-sm font-medium transition-all ${
-                    formData.personality === option
-                      ? 'gradient-primary text-white'
-                      : 'bg-muted hover:bg-muted/80'
-                  }`}
+                  className={`py-3 rounded-xl text-sm font-medium transition-all ${formData.personality === option ? 'gradient-primary text-white' : 'bg-muted hover:bg-muted/80'}`}
                 >
                   {option}
                 </button>
@@ -160,44 +131,25 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, on
             </div>
           </div>
 
-          {/* Interests */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-3">Travel Interests</label>
             <div className="flex flex-wrap gap-2">
               {interestOptions.map(({ id, label, icon: Icon }) => (
                 <button
-                  key={id}
-                  type="button"
+                  key={id} type="button"
                   onClick={() => handleInterestToggle(id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                    formData.interests.includes(id)
-                      ? 'gradient-primary text-white'
-                      : 'bg-muted hover:bg-muted/80'
-                  }`}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${formData.interests.includes(id) ? 'gradient-primary text-white' : 'bg-muted hover:bg-muted/80'}`}
                 >
-                  <Icon className="w-4 h-4" />
-                  {label}
+                  <Icon className="w-4 h-4" />{label}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Submit Button */}
           <div className="flex gap-3 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              className="flex-1 h-12 rounded-xl"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              className="flex-1 h-12 gradient-primary text-primary-foreground rounded-xl font-semibold"
-            >
-              <Save className="w-5 h-5 mr-2" />
-              Save Changes
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1 h-12 rounded-xl">Cancel</Button>
+            <Button type="submit" className="flex-1 h-12 gradient-primary text-primary-foreground rounded-xl font-semibold">
+              <Save className="w-5 h-5 mr-2" />Save Changes
             </Button>
           </div>
         </form>

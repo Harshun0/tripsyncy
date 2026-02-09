@@ -1,5 +1,5 @@
-import React from 'react';
-import { ArrowRight, Sparkles, Users, Shield, MapPin, Star, Play } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowRight, Sparkles, Users, MapPin, Star, Play, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface HeroSectionProps {
@@ -9,11 +9,7 @@ interface HeroSectionProps {
 }
 
 const HeroSection: React.FC<HeroSectionProps> = ({ onGetStarted, onExplore, isLoggedIn }) => {
-  const features = [
-    { icon: Sparkles, label: 'AI-Powered Itineraries', color: 'text-primary' },
-    { icon: Users, label: 'Find Travel Buddies', color: 'text-secondary' },
-    { icon: Shield, label: 'Travel Safe', color: 'text-success' },
-  ];
+  const [showVideo, setShowVideo] = useState(false);
 
   const stats = [
     { value: '50K+', label: 'Travelers' },
@@ -41,143 +37,69 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onGetStarted, onExplore, isLo
       </div>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-32">
-        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-          {/* Left Content */}
-          <div className="text-center lg:text-left space-y-8">
-            {/* Badge */}
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full text-white/90 text-sm font-medium border border-white/20">
-              <Sparkles className="w-4 h-4 text-secondary" />
-              AI-Powered Travel Companion
-            </div>
-
-            {/* Heading */}
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-white leading-tight">
-              Travel Smarter.
-              <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-secondary via-sunset-pink to-accent">
-                Travel Together.
-              </span>
-            </h1>
-
-            {/* Subheading */}
-            <p className="text-lg sm:text-xl text-white/80 max-w-xl mx-auto lg:mx-0">
-              Find your perfect travel companions with AI-powered matching, plan smart itineraries, and explore the world safely.
-            </p>
-
-            {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-              <Button
-                onClick={onGetStarted}
-                size="lg"
-                className="h-14 px-8 bg-white text-primary hover:bg-white/90 rounded-2xl text-lg font-semibold shadow-xl hover:shadow-2xl transition-all group"
-              >
-                {isLoggedIn ? 'Explore Now' : 'Get Started Free'}
-                <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-              </Button>
-              <Button
-                onClick={onExplore}
-                size="lg"
-                variant="outline"
-                className="h-14 px-8 border-2 border-white/30 text-white hover:bg-white/10 rounded-2xl text-lg font-semibold backdrop-blur-sm"
-              >
-                <Play className="w-5 h-5 mr-2" />
-                See How It Works
-              </Button>
-            </div>
-
-            {/* Features Pills */}
-            <div className="flex flex-wrap gap-3 justify-center lg:justify-start">
-              {features.map(({ icon: Icon, label, color }) => (
-                <div
-                  key={label}
-                  className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full text-white text-sm border border-white/10"
-                >
-                  <Icon className={`w-4 h-4 ${color}`} />
-                  {label}
-                </div>
-              ))}
-            </div>
+        <div className="text-center space-y-8 max-w-4xl mx-auto">
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full text-white/90 text-sm font-medium border border-white/20">
+            <Sparkles className="w-4 h-4 text-secondary" />
+            AI-Powered Travel Companion
           </div>
 
-          {/* Right Content - Demo Preview */}
-          <div className="relative hidden lg:block">
-            {/* Main App Preview Card */}
-            <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
-              {/* Header Mock */}
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 gradient-primary rounded-xl flex items-center justify-center">
-                  <MapPin className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-white font-semibold">TripSync AI</h3>
-                  <p className="text-white/60 text-sm">Your Smart Travel Companion</p>
-                </div>
-              </div>
+          {/* Heading */}
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-white leading-tight">
+            Travel Smarter.
+            <br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-secondary via-sunset-pink to-accent">
+              Travel Together.
+            </span>
+          </h1>
 
-              {/* AI Suggestion Card */}
-              <div className="bg-white/10 rounded-2xl p-4 mb-4">
-                <p className="text-white/80 text-sm mb-3">🎯 AI Recommendation</p>
-                <p className="text-white font-medium mb-3">
-                  "Based on your interests, I found 3 travelers near you planning a Goa trip!"
-                </p>
-                <div className="flex gap-2">
-                  <div className="flex -space-x-2">
-                    {[1, 2, 3].map((i) => (
-                      <img
-                        key={i}
-                        src={`https://images.unsplash.com/photo-${1494790108377 + i * 100000}-be9c29b29330?w=40&h=40&fit=crop&crop=face`}
-                        alt=""
-                        className="w-8 h-8 rounded-full border-2 border-white/20"
-                      />
-                    ))}
-                  </div>
-                  <span className="text-white/60 text-sm flex items-center">+92% Match Score</span>
-                </div>
-              </div>
+          {/* Subheading */}
+          <p className="text-lg sm:text-xl text-white/80 max-w-xl mx-auto">
+            Find your perfect travel companions with AI-powered matching, plan smart itineraries, and explore the world safely.
+          </p>
 
-              {/* Match Preview */}
-              <div className="flex items-center justify-between bg-gradient-to-r from-primary/20 to-secondary/20 rounded-2xl p-4">
-                <div className="flex items-center gap-3">
-                  <img
-                    src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=60&h=60&fit=crop&crop=face"
-                    alt="Priya"
-                    className="w-12 h-12 rounded-full border-2 border-white/30"
-                  />
-                  <div>
-                    <p className="text-white font-medium">Priya Sharma</p>
-                    <p className="text-white/60 text-sm">Adventure • Nature • Photography</p>
-                  </div>
-                </div>
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-white">87%</p>
-                  <p className="text-white/60 text-xs">Match</p>
-                </div>
-              </div>
-            </div>
+          {/* CTA Buttons */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button
+              onClick={onGetStarted}
+              size="lg"
+              className="h-14 px-8 bg-white text-primary hover:bg-white/90 rounded-2xl text-lg font-semibold shadow-xl hover:shadow-2xl transition-all group"
+            >
+              {isLoggedIn ? 'Explore Now' : 'Get Started Free'}
+              <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+            </Button>
+            <Button
+              onClick={() => setShowVideo(true)}
+              size="lg"
+              className="h-14 px-8 bg-white text-primary hover:bg-white/90 rounded-2xl text-lg font-semibold shadow-xl hover:shadow-2xl transition-all group"
+            >
+              <Play className="w-5 h-5 mr-2" />
+              See How It Works
+            </Button>
+          </div>
 
-            {/* Floating Stats Cards */}
-            <div className="absolute -left-12 top-1/4 bg-white rounded-2xl p-4 shadow-2xl animate-float">
-              <p className="text-3xl font-bold text-primary">50K+</p>
-              <p className="text-muted-foreground text-sm">Active Travelers</p>
-            </div>
-
-            <div className="absolute -right-8 bottom-16 bg-white rounded-2xl p-4 shadow-2xl animate-float" style={{ animationDelay: '1s' }}>
-              <div className="flex items-center gap-2">
-                <Shield className="w-8 h-8 text-success" />
-                <div>
-                  <p className="font-semibold text-foreground">100% Safe</p>
-                  <p className="text-muted-foreground text-xs">Verified Profiles</p>
-                </div>
+          {/* Features Pills */}
+          <div className="flex flex-wrap gap-3 justify-center">
+            {[
+              { icon: Sparkles, label: 'AI-Powered Itineraries' },
+              { icon: Users, label: 'Find Travel Buddies' },
+            ].map(({ icon: Icon, label }) => (
+              <div
+                key={label}
+                className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full text-white text-sm border border-white/10"
+              >
+                <Icon className="w-4 h-4" />
+                {label}
               </div>
-            </div>
+            ))}
           </div>
         </div>
 
         {/* Bottom Stats */}
         <div className="mt-20 pt-12 border-t border-white/10">
-          <div className="grid grid-cols-3 gap-8 max-w-2xl mx-auto lg:mx-0">
+          <div className="grid grid-cols-3 gap-8 max-w-2xl mx-auto">
             {stats.map(({ value, label }) => (
-              <div key={label} className="text-center lg:text-left">
+              <div key={label} className="text-center">
                 <p className="text-3xl sm:text-4xl font-bold text-white">{value}</p>
                 <p className="text-white/60 text-sm sm:text-base">{label}</p>
               </div>
@@ -195,6 +117,27 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onGetStarted, onExplore, isLo
           />
         </svg>
       </div>
+
+      {/* Video Modal */}
+      {showVideo && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="relative w-full max-w-4xl aspect-video bg-black rounded-3xl overflow-hidden shadow-2xl">
+            <button
+              onClick={() => setShowVideo(false)}
+              className="absolute top-4 right-4 z-10 w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors"
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
+            <iframe
+              src="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1"
+              title="How TripSync Works"
+              className="w-full h-full"
+              allow="autoplay; encrypted-media"
+              allowFullScreen
+            />
+          </div>
+        </div>
+      )}
     </section>
   );
 };

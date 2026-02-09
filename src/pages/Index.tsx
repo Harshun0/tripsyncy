@@ -8,7 +8,6 @@ import FeaturesSection from '@/components/sections/FeaturesSection';
 import TravelersSection from '@/components/sections/TravelersSection';
 import FeedSection from '@/components/sections/FeedSection';
 import ItinerarySection from '@/components/sections/ItinerarySection';
-import SafetySection from '@/components/sections/SafetySection';
 import ExpenseSection from '@/components/sections/ExpenseSection';
 import ProfileSection from '@/components/sections/ProfileSection';
 import AIChatModal from '@/components/sections/AIChatModal';
@@ -51,6 +50,7 @@ const Index: React.FC = () => {
   const handleLogout = () => {
     setIsLoggedIn(false);
     setActiveSection('landing');
+    setShowMessagesPanel(false);
   };
 
   const renderContent = () => {
@@ -66,7 +66,6 @@ const Index: React.FC = () => {
             <FeaturesSection />
             <TravelersSection />
             <ItinerarySection />
-            <SafetySection />
           </>
         );
       case 'home':
@@ -87,12 +86,6 @@ const Index: React.FC = () => {
             <ItinerarySection />
           </div>
         );
-      case 'safety':
-        return (
-          <div className="pt-20">
-            <SafetySection />
-          </div>
-        );
       case 'expenses':
         return (
           <div className="pt-20">
@@ -102,7 +95,10 @@ const Index: React.FC = () => {
       case 'profile':
         return (
           <div className="pt-20">
-            <ProfileSection onLogout={handleLogout} />
+            <ProfileSection 
+              onLogout={handleLogout} 
+              onOpenMessages={() => setShowMessagesPanel(true)}
+            />
           </div>
         );
       default:
@@ -126,6 +122,7 @@ const Index: React.FC = () => {
         onNavigate={handleNavigate}
         isLoggedIn={isLoggedIn}
         onLogin={handleLogin}
+        onLogout={handleLogout}
       />
       
       <main>
@@ -134,7 +131,6 @@ const Index: React.FC = () => {
       
       <Footer />
       
-      {/* Floating Messages Button (only show when logged in) */}
       {isLoggedIn && (
         <>
           <FloatingMessagesButton 
@@ -142,8 +138,6 @@ const Index: React.FC = () => {
             isOpen={showMessagesPanel}
             unreadCount={2}
           />
-          
-          {/* Messages Panel */}
           <MessagesPanel 
             isOpen={showMessagesPanel} 
             onClose={() => setShowMessagesPanel(false)} 
@@ -151,13 +145,11 @@ const Index: React.FC = () => {
         </>
       )}
       
-      {/* AI Chat Modal */}
       <AIChatModal 
         isOpen={showAIChat} 
         onClose={() => setShowAIChat(false)} 
       />
 
-      {/* Login Modal */}
       <LoginModal
         isOpen={showLoginModal}
         onClose={() => setShowLoginModal(false)}

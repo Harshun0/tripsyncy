@@ -29,34 +29,44 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState<'messages' | 'requests'>('messages');
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState('');
-  
-  // Dummy chat data - chats that have been accepted
-  const [acceptedChats] = useState([
+  const [chatMessages, setChatMessages] = useState<Record<string, ChatMessage[]>>({
+    '1': [
+      { id: '1', senderId: 'other', content: 'Hey! Excited about the trip!', timestamp: '10:30 AM' },
+      { id: '2', senderId: 'me', content: 'Same here! Which dates work for you?', timestamp: '10:32 AM' },
+      { id: '3', senderId: 'other', content: 'I was thinking 15th to 20th', timestamp: '10:35 AM' },
+      { id: '4', senderId: 'other', content: "Sounds great! Let's plan the itinerary", timestamp: '10:36 AM' },
+    ],
+    '2': [
+      { id: '1', senderId: 'me', content: 'Hey, how much did we spend yesterday?', timestamp: '9:00 AM' },
+      { id: '2', senderId: 'other', content: "I'll share the expense details", timestamp: '9:15 AM' },
+    ],
+  });
+
+  const [acceptedChats, setAcceptedChats] = useState([
     {
       id: '1',
       name: 'Priya Sharma',
-      avatar: dummyProfiles[0]?.avatar || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=face',
-      lastMessage: 'Sounds great! Let\'s plan the itinerary',
+      avatar: dummyProfiles[0]?.avatar || '',
+      lastMessage: "Sounds great! Let's plan the itinerary",
       unread: 2,
       timestamp: '2m ago',
     },
     {
       id: '2',
       name: 'Arjun Patel',
-      avatar: dummyProfiles[1]?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
-      lastMessage: 'I\'ll share the expense details',
+      avatar: dummyProfiles[1]?.avatar || '',
+      lastMessage: "I'll share the expense details",
       unread: 0,
       timestamp: '1h ago',
     },
   ]);
 
-  // Dummy trip requests - both sent and received
   const [tripRequests, setTripRequests] = useState<TripRequest[]>([
     {
       id: '1',
       userId: '3',
       userName: 'Ananya Roy',
-      userAvatar: dummyProfiles[2]?.avatar || 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=face',
+      userAvatar: dummyProfiles[2]?.avatar || '',
       message: 'Hey! I saw we have 87% match. Would love to join your Goa trip!',
       status: 'pending',
       timestamp: '30m ago',
@@ -65,46 +75,83 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose }) => {
       id: '2',
       userId: '4',
       userName: 'Rahul Mehta',
-      userAvatar: dummyProfiles[3]?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face',
+      userAvatar: dummyProfiles[3]?.avatar || '',
       message: 'Looking for travel buddies for Ladakh next month',
       status: 'pending',
       timestamp: '2h ago',
     },
+    {
+      id: '3',
+      userId: '5',
+      userName: 'Sneha Kapoor',
+      userAvatar: dummyProfiles[4]?.avatar || '',
+      message: 'Your photography interests match mine! Want to explore Jaipur together?',
+      status: 'pending',
+      timestamp: '5h ago',
+    },
   ]);
 
-  // Dummy messages for a chat
-  const [messages] = useState<Record<string, ChatMessage[]>>({
-    '1': [
-      { id: '1', senderId: 'other', content: 'Hey! Excited about the trip!', timestamp: '10:30 AM' },
-      { id: '2', senderId: 'me', content: 'Same here! Which dates work for you?', timestamp: '10:32 AM' },
-      { id: '3', senderId: 'other', content: 'I was thinking 15th to 20th', timestamp: '10:35 AM' },
-      { id: '4', senderId: 'other', content: 'Sounds great! Let\'s plan the itinerary', timestamp: '10:36 AM' },
-    ],
-    '2': [
-      { id: '1', senderId: 'me', content: 'Hey, how much did we spend yesterday?', timestamp: '9:00 AM' },
-      { id: '2', senderId: 'other', content: 'I\'ll share the expense details', timestamp: '9:15 AM' },
-    ],
-  });
-
   const handleAcceptRequest = (requestId: string) => {
-    setTripRequests(prev => 
-      prev.map(req => 
+    const request = tripRequests.find(r => r.id === requestId);
+    if (!request) return;
+    
+    setTripRequests(prev =>
+      prev.map(req =>
         req.id === requestId ? { ...req, status: 'accepted' as const } : req
       )
     );
+
+    // Add to accepted chats
+    const newChatId = `req-${requestId}`;
+    setAcceptedChats(prev => [
+      {
+        id: newChatId,
+        name: request.userName,
+        avatar: request.userAvatar,
+        lastMessage: 'Request accepted! Start chatting.',
+        unread: 0,
+        timestamp: 'Just now',
+      },
+      ...prev,
+    ]);
+    setChatMessages(prev => ({
+      ...prev,
+      [newChatId]: [
+        {
+          id: '1',
+          senderId: 'system',
+          content: '🎉 Trip request accepted! You can now chat.',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      ],
+    }));
   };
 
   const handleRejectRequest = (requestId: string) => {
-    setTripRequests(prev => 
-      prev.map(req => 
+    setTripRequests(prev =>
+      prev.map(req =>
         req.id === requestId ? { ...req, status: 'rejected' as const } : req
       )
     );
   };
 
   const handleSendMessage = () => {
-    if (!inputValue.trim()) return;
-    // In a real app, this would send the message
+    if (!inputValue.trim() || !selectedChat) return;
+    const newMsg: ChatMessage = {
+      id: Date.now().toString(),
+      senderId: 'me',
+      content: inputValue,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+    setChatMessages(prev => ({
+      ...prev,
+      [selectedChat]: [...(prev[selectedChat] || []), newMsg],
+    }));
+    setAcceptedChats(prev =>
+      prev.map(c =>
+        c.id === selectedChat ? { ...c, lastMessage: inputValue, timestamp: 'Just now' } : c
+      )
+    );
     setInputValue('');
   };
 
@@ -115,13 +162,13 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose }) => {
   // Chat View
   if (selectedChat) {
     const chat = acceptedChats.find(c => c.id === selectedChat);
-    const chatMessages = messages[selectedChat] || [];
+    const msgs = chatMessages[selectedChat] || [];
 
     return (
-      <div className="fixed bottom-24 right-6 z-40 w-96 h-[500px] bg-background rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden animate-fade-in">
+      <div className="fixed top-20 bottom-6 right-6 z-40 w-96 bg-background rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden animate-fade-in">
         {/* Chat Header */}
-        <div className="glass-effect px-4 py-3 flex items-center gap-3 border-b border-border">
-          <button 
+        <div className="px-4 py-3 flex items-center gap-3 border-b border-border bg-card">
+          <button
             onClick={() => setSelectedChat(null)}
             className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center"
           >
@@ -139,23 +186,29 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose }) => {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {chatMessages.map((msg) => (
+          {msgs.map((msg) => (
             <div
               key={msg.id}
-              className={`flex ${msg.senderId === 'me' ? 'justify-end' : 'justify-start'}`}
+              className={`flex ${msg.senderId === 'me' ? 'justify-end' : msg.senderId === 'system' ? 'justify-center' : 'justify-start'}`}
             >
-              <div
-                className={`max-w-[75%] rounded-2xl px-4 py-2 ${
-                  msg.senderId === 'me'
-                    ? 'gradient-primary text-primary-foreground rounded-br-md'
-                    : 'bg-muted text-foreground rounded-bl-md'
-                }`}
-              >
-                <p className="text-sm">{msg.content}</p>
-                <p className={`text-[10px] mt-1 ${msg.senderId === 'me' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                  {msg.timestamp}
-                </p>
-              </div>
+              {msg.senderId === 'system' ? (
+                <div className="px-4 py-2 bg-primary/10 rounded-full text-xs text-primary font-medium">
+                  {msg.content}
+                </div>
+              ) : (
+                <div
+                  className={`max-w-[75%] rounded-2xl px-4 py-2 ${
+                    msg.senderId === 'me'
+                      ? 'gradient-primary text-primary-foreground rounded-br-md'
+                      : 'bg-muted text-foreground rounded-bl-md'
+                  }`}
+                >
+                  <p className="text-sm">{msg.content}</p>
+                  <p className={`text-[10px] mt-1 ${msg.senderId === 'me' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                    {msg.timestamp}
+                  </p>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -185,11 +238,11 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose }) => {
     );
   }
 
-  // Main Panel View
+  // Main Panel
   return (
-    <div className="fixed bottom-24 right-6 z-40 w-96 h-[500px] bg-background rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden animate-fade-in">
+    <div className="fixed top-20 bottom-6 right-6 z-40 w-96 bg-background rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden animate-fade-in">
       {/* Header */}
-      <div className="glass-effect px-4 py-3 flex items-center justify-between border-b border-border">
+      <div className="px-4 py-3 flex items-center justify-between border-b border-border bg-card">
         <div className="flex items-center gap-2">
           <div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center">
             <MessageCircle className="w-5 h-5 text-white" />
@@ -199,7 +252,7 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose }) => {
             <p className="text-xs text-muted-foreground">Stay connected with travelers</p>
           </div>
         </div>
-        <button 
+        <button
           onClick={onClose}
           className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center"
         >
@@ -234,7 +287,7 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose }) => {
             <Users className="w-4 h-4" />
             Requests
             {pendingRequests.length > 0 && (
-              <span className="absolute top-2 right-1/4 w-5 h-5 bg-secondary text-white text-xs rounded-full flex items-center justify-center">
+              <span className="w-5 h-5 bg-secondary text-white text-xs rounded-full flex items-center justify-center">
                 {pendingRequests.length}
               </span>
             )}
@@ -324,7 +377,7 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose }) => {
                       ) : request.status === 'accepted' ? (
                         <div className="flex items-center gap-2 text-success text-sm">
                           <UserCheck className="w-4 h-4" />
-                          <span>Request Accepted</span>
+                          <span>Request Accepted — Chat enabled</span>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2 text-muted-foreground text-sm">
