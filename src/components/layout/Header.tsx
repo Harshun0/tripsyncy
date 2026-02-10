@@ -1,6 +1,14 @@
 import React, { useState } from 'react';
-import { MapPin, Menu, X, Sparkles, User, LogIn, Heart, MessageSquare, Bookmark, LogOut } from 'lucide-react';
+import { MapPin, Menu, X, Sparkles, User, LogIn, Heart, MessageSquare, Bookmark, LogOut, Bell, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+
+interface Notification {
+  id: string;
+  type: 'follow' | 'like' | 'comment' | 'request';
+  message: string;
+  timestamp: string;
+  read: boolean;
+}
 
 interface HeaderProps {
   activeSection: string;
@@ -8,11 +16,26 @@ interface HeaderProps {
   isLoggedIn: boolean;
   onLogin: () => void;
   onLogout?: () => void;
+  requestCount?: number;
 }
 
-const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, onLogin, onLogout }) => {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, onLogin, onLogout, requestCount = 0 }) => {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+
+  const [notifications, setNotifications] = useState<Notification[]>([
+    { id: '1', type: 'request', message: 'Ananya Roy sent you a follow request', timestamp: '30m ago', read: false },
+    { id: '2', type: 'like', message: 'Priya Sharma liked your post about Rishikesh', timestamp: '1h ago', read: false },
+    { id: '3', type: 'comment', message: 'Arjun Patel commented on your Goa photo', timestamp: '2h ago', read: false },
+    { id: '4', type: 'follow', message: 'Sneha Kapoor started following you', timestamp: '5h ago', read: true },
+    { id: '5', type: 'like', message: 'Vikram Singh liked your post', timestamp: '1d ago', read: true },
+  ]);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const markAllRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
 
   const navItems = [
     { id: 'home', label: 'Home' },
@@ -25,8 +48,19 @@ const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, 
     { icon: Heart, label: 'Liked Posts', id: 'liked' },
     { icon: MessageSquare, label: 'My Comments', id: 'comments' },
     { icon: Bookmark, label: 'Saved Posts', id: 'saved' },
+    { icon: UserPlus, label: 'Requests', id: 'requests', badge: requestCount },
     { icon: User, label: 'My Profile', id: 'profile' },
   ];
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'follow': return <UserPlus className="w-4 h-4 text-primary" />;
+      case 'like': return <Heart className="w-4 h-4 text-destructive" />;
+      case 'comment': return <MessageSquare className="w-4 h-4 text-blue-500" />;
+      case 'request': return <UserPlus className="w-4 h-4 text-orange-500" />;
+      default: return <Bell className="w-4 h-4 text-primary" />;
+    }
+  };
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 glass-effect border-b border-border/50">
@@ -63,39 +97,88 @@ const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, 
           )}
 
           {/* Right Section */}
-          <div className="flex items-center gap-3 flex-shrink-0">
-            {/* AI Button - only when logged in */}
+          <div className="flex items-center gap-2 flex-shrink-0">
             {isLoggedIn && (
-              <Button
-                onClick={() => onNavigate('ai')}
-                className="flex items-center gap-2 gradient-primary text-primary-foreground rounded-xl shadow-glow hover:shadow-lg transition-shadow"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span className="hidden md:inline">Ask AI</span>
-              </Button>
-            )}
-
-            {isLoggedIn ? (
               <>
+                {/* Ask AI */}
+                <Button
+                  onClick={() => onNavigate('ai')}
+                  className="flex items-center gap-2 gradient-primary text-primary-foreground rounded-xl shadow-glow hover:shadow-lg transition-shadow"
+                  size="sm"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span className="hidden md:inline">Ask AI</span>
+                </Button>
+
+                {/* Notifications Bell */}
+                <div className="relative">
+                  <button
+                    onClick={() => { setNotificationsOpen(!notificationsOpen); setUserMenuOpen(false); }}
+                    className="relative p-2 rounded-xl hover:bg-muted transition-colors"
+                  >
+                    <Bell className="w-5 h-5 text-foreground" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-destructive text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {notificationsOpen && (
+                    <div className="absolute top-full right-0 mt-2 w-80 bg-background/95 backdrop-blur-xl border border-border rounded-2xl shadow-xl animate-fade-in overflow-hidden z-50">
+                      <div className="px-4 py-3 flex items-center justify-between border-b border-border">
+                        <h3 className="font-semibold text-foreground text-sm">Notifications</h3>
+                        {unreadCount > 0 && (
+                          <button onClick={markAllRead} className="text-xs text-primary font-medium hover:underline">
+                            Mark all read
+                          </button>
+                        )}
+                      </div>
+                      <div className="max-h-80 overflow-y-auto">
+                        {notifications.map((notif) => (
+                          <div
+                            key={notif.id}
+                            className={`px-4 py-3 flex items-start gap-3 hover:bg-muted/50 transition-colors ${!notif.read ? 'bg-primary/5' : ''}`}
+                          >
+                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
+                              {getNotificationIcon(notif.type)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm ${!notif.read ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>
+                                {notif.message}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-0.5">{notif.timestamp}</p>
+                            </div>
+                            {!notif.read && (
+                              <span className="w-2 h-2 bg-primary rounded-full flex-shrink-0 mt-2" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Profile */}
                 <Button
                   onClick={() => onNavigate('profile')}
                   variant="outline"
+                  size="sm"
                   className="hidden sm:flex items-center gap-2 rounded-xl border-2 border-primary text-primary"
                 >
                   <User className="w-4 h-4" />
                   <span className="hidden md:inline">Profile</span>
                 </Button>
 
-                {/* User Menu Toggle (three lines) */}
+                {/* User Menu Toggle */}
                 <div className="relative">
                   <button
-                    onClick={() => { setUserMenuOpen(!userMenuOpen); setMobileMenuOpen(false); }}
+                    onClick={() => { setUserMenuOpen(!userMenuOpen); setNotificationsOpen(false); }}
                     className="p-2 rounded-xl bg-muted hover:bg-muted/80 transition-colors"
                   >
                     {userMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                   </button>
 
-                  {/* User Dropdown Menu */}
                   {userMenuOpen && (
                     <div className="absolute top-full right-0 mt-2 w-64 bg-background/95 backdrop-blur-xl border border-border rounded-2xl shadow-xl animate-fade-in overflow-hidden z-50">
                       <div className="p-4 border-b border-border">
@@ -130,14 +213,19 @@ const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, 
                       </div>
 
                       <div className="p-2">
-                        {userMenuItems.map(({ icon: Icon, label, id }) => (
+                        {userMenuItems.map(({ icon: Icon, label, id, badge }) => (
                           <button
                             key={id}
                             onClick={() => { onNavigate(id === 'profile' ? 'profile' : id); setUserMenuOpen(false); }}
                             className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-foreground hover:bg-muted transition-colors"
                           >
                             <Icon className="w-4 h-4 text-primary" />
-                            {label}
+                            <span className="flex-1 text-left">{label}</span>
+                            {badge && badge > 0 && (
+                              <span className="w-5 h-5 bg-destructive text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                                {badge}
+                              </span>
+                            )}
                           </button>
                         ))}
                       </div>
@@ -155,7 +243,9 @@ const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, 
                   )}
                 </div>
               </>
-            ) : (
+            )}
+
+            {!isLoggedIn && (
               <Button
                 onClick={onLogin}
                 className="flex items-center gap-2 gradient-primary text-primary-foreground rounded-xl shadow-glow"

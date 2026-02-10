@@ -1,32 +1,45 @@
 import React, { useState } from 'react';
-import { Heart, MessageCircle, Bookmark, Share2, MoreHorizontal, MapPin, TrendingUp, UserPlus, UserCheck, X, Send } from 'lucide-react';
+import { Heart, MessageCircle, Bookmark, Share2, MapPin, TrendingUp, UserPlus, UserCheck, Send, X, Copy, Facebook, Twitter, Link2 } from 'lucide-react';
 import { dummyPosts, dummyProfiles, TravelPost } from '@/data/dummyProfiles';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 
-const FeedSection: React.FC = () => {
+interface FeedSectionProps {
+  onLikePost?: (postId: string, liked: boolean) => void;
+  onCommentPost?: (postId: string, comment: string) => void;
+  onSavePost?: (postId: string, saved: boolean) => void;
+}
+
+const FeedSection: React.FC<FeedSectionProps> = ({ onLikePost, onCommentPost, onSavePost }) => {
   const [posts, setPosts] = useState<TravelPost[]>(dummyPosts);
   const [followedUsers, setFollowedUsers] = useState<Set<string>>(new Set());
   const [commentingOn, setCommentingOn] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
   const [postComments, setPostComments] = useState<Record<string, { user: string; text: string }[]>>({});
+  const [shareMenuOpen, setShareMenuOpen] = useState<string | null>(null);
 
   const toggleLike = (postId: string) => {
-    setPosts(posts.map(post => 
-      post.id === postId 
-        ? { ...post, liked: !post.liked, likes: post.liked ? post.likes - 1 : post.likes + 1 }
-        : post
-    ));
+    setPosts(posts.map(post => {
+      if (post.id === postId) {
+        const newLiked = !post.liked;
+        onLikePost?.(postId, newLiked);
+        if (newLiked) toast({ title: 'Post liked! ❤️' });
+        return { ...post, liked: newLiked, likes: newLiked ? post.likes + 1 : post.likes - 1 };
+      }
+      return post;
+    }));
   };
 
   const toggleSave = (postId: string) => {
-    setPosts(posts.map(post => 
-      post.id === postId 
-        ? { ...post, saved: !post.saved }
-        : post
-    ));
-    const post = posts.find(p => p.id === postId);
-    toast({ title: post?.saved ? 'Removed from saved' : 'Post saved! 🔖' });
+    setPosts(posts.map(post => {
+      if (post.id === postId) {
+        const newSaved = !post.saved;
+        onSavePost?.(postId, newSaved);
+        toast({ title: newSaved ? 'Post saved! 🔖' : 'Removed from saved' });
+        return { ...post, saved: newSaved };
+      }
+      return post;
+    }));
   };
 
   const handleFollow = (userId: string, userName: string) => {
@@ -43,13 +56,44 @@ const FeedSection: React.FC = () => {
     });
   };
 
-  const handleShare = (post: TravelPost) => {
-    if (navigator.share) {
-      navigator.share({ title: `${post.userName} on TripSync`, text: post.caption, url: window.location.href });
-    } else {
-      navigator.clipboard.writeText(`${post.userName}: ${post.caption}`);
-      toast({ title: 'Link copied to clipboard! 📋' });
+  const handleShare = (post: TravelPost, method: string) => {
+    const shareText = `${post.userName} on TripSync: ${post.caption}`;
+    const shareUrl = window.location.href;
+
+    switch (method) {
+      case 'copy':
+        navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+        toast({ title: 'Link copied to clipboard! 📋' });
+        break;
+      case 'followers':
+        toast({ title: 'Shared with followers! 📢', description: 'Your followers will see this in their feed.' });
+        break;
+      case 'whatsapp':
+        window.open(`https://wa.me/?text=${encodeURIComponent(shareText + '\n' + shareUrl)}`, '_blank');
+        toast({ title: 'Opening WhatsApp... 💬' });
+        break;
+      case 'twitter':
+        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`, '_blank');
+        toast({ title: 'Opening Twitter... 🐦' });
+        break;
+      case 'facebook':
+        window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`, '_blank');
+        toast({ title: 'Opening Facebook... 📘' });
+        break;
+      case 'telegram':
+        window.open(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`, '_blank');
+        toast({ title: 'Opening Telegram... ✈️' });
+        break;
+      case 'native':
+        if (navigator.share) {
+          navigator.share({ title: `${post.userName} on TripSync`, text: post.caption, url: shareUrl });
+        } else {
+          navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+          toast({ title: 'Link copied to clipboard! 📋' });
+        }
+        break;
     }
+    setShareMenuOpen(null);
   };
 
   const handleComment = (postId: string) => {
@@ -59,6 +103,7 @@ const FeedSection: React.FC = () => {
       [postId]: [...(prev[postId] || []), { user: 'You', text: commentText }],
     }));
     setPosts(posts.map(p => p.id === postId ? { ...p, comments: p.comments + 1 } : p));
+    onCommentPost?.(postId, commentText);
     setCommentText('');
     toast({ title: 'Comment added! 💬' });
   };
@@ -79,7 +124,6 @@ const FeedSection: React.FC = () => {
           <div className="lg:col-span-2 space-y-6">
             {posts.map((post) => (
               <article key={post.id} className="bg-card rounded-3xl overflow-hidden shadow-lg hover:shadow-xl transition-shadow">
-                {/* Post Header */}
                 <div className="flex items-center justify-between px-6 py-4">
                   <div className="flex items-center gap-3">
                     <img src={post.userAvatar} alt={post.userName} className="w-12 h-12 rounded-full object-cover" />
@@ -109,12 +153,10 @@ const FeedSection: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Post Image */}
                 <div className="relative aspect-[16/10]">
                   <img src={post.image} alt={post.caption} className="w-full h-full object-cover" />
                 </div>
 
-                {/* Post Actions */}
                 <div className="px-6 py-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
@@ -132,9 +174,50 @@ const FeedSection: React.FC = () => {
                         <MessageCircle className="w-6 h-6" />
                         <span className="font-medium text-sm">{post.comments}</span>
                       </button>
-                      <button onClick={() => handleShare(post)} className="hover:text-primary transition-colors">
-                        <Share2 className="w-6 h-6" />
-                      </button>
+                      <div className="relative">
+                        <button 
+                          onClick={() => setShareMenuOpen(shareMenuOpen === post.id ? null : post.id)} 
+                          className="hover:text-primary transition-colors"
+                        >
+                          <Share2 className="w-6 h-6" />
+                        </button>
+                        {shareMenuOpen === post.id && (
+                          <div className="absolute bottom-full left-0 mb-2 w-56 bg-background border border-border rounded-2xl shadow-xl z-50 animate-fade-in overflow-hidden">
+                            <div className="p-2">
+                              <button onClick={() => handleShare(post, 'followers')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
+                                <UserPlus className="w-4 h-4 text-primary" />
+                                Share with Followers
+                              </button>
+                              <button onClick={() => handleShare(post, 'whatsapp')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
+                                <Send className="w-4 h-4 text-green-500" />
+                                WhatsApp
+                              </button>
+                              <button onClick={() => handleShare(post, 'twitter')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
+                                <Twitter className="w-4 h-4 text-sky-500" />
+                                Twitter / X
+                              </button>
+                              <button onClick={() => handleShare(post, 'facebook')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
+                                <Facebook className="w-4 h-4 text-blue-600" />
+                                Facebook
+                              </button>
+                              <button onClick={() => handleShare(post, 'telegram')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
+                                <Send className="w-4 h-4 text-sky-400" />
+                                Telegram
+                              </button>
+                              <button onClick={() => handleShare(post, 'copy')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
+                                <Copy className="w-4 h-4 text-muted-foreground" />
+                                Copy Link
+                              </button>
+                              {typeof navigator.share === 'function' && (
+                                <button onClick={() => handleShare(post, 'native')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
+                                  <Link2 className="w-4 h-4 text-muted-foreground" />
+                                  More Options...
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <button
                       onClick={() => toggleSave(post.id)}
@@ -148,7 +231,6 @@ const FeedSection: React.FC = () => {
                     <span className="font-semibold">{post.userName}</span>{' '}{post.caption}
                   </p>
 
-                  {/* Comments Section */}
                   {commentingOn === post.id && (
                     <div className="space-y-2 pt-2 border-t border-border animate-fade-in">
                       {(postComments[post.id] || []).map((c, i) => (
@@ -176,7 +258,6 @@ const FeedSection: React.FC = () => {
             ))}
           </div>
 
-          {/* Sidebar */}
           <div className="space-y-6">
             <div className="bg-card rounded-3xl p-6 shadow-lg">
               <div className="flex items-center gap-2 mb-4">
