@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, Edit2, MapPin, BadgeCheck, Award, Wallet, Heart, Mountain, Utensils, Compass, Sunrise, Camera, Share2, MessageCircle, LogOut } from 'lucide-react';
+import { Settings, Edit2, MapPin, BadgeCheck, Award, Wallet, Heart, Mountain, Utensils, Compass, Sunrise, Camera, Share2, MessageCircle, LogOut, Copy, Facebook, Twitter, Send, Link2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ProfileSettingsModal from '@/components/modals/ProfileSettingsModal';
 import EditProfileModal from '@/components/modals/EditProfileModal';
@@ -13,6 +13,7 @@ interface ProfileSectionProps {
 const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessages }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showShareMenu, setShowShareMenu] = useState(false);
 
   const userProfile = {
     name: 'You',
@@ -33,12 +34,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
   };
 
   const interestIcons: Record<string, React.ElementType> = {
-    Adventure: Mountain,
-    Food: Utensils,
-    Culture: Compass,
-    Nature: Sunrise,
-    Photography: Camera,
-    Spirituality: Heart,
+    Adventure: Mountain, Food: Utensils, Culture: Compass, Nature: Sunrise, Photography: Camera, Spirituality: Heart,
   };
 
   const recentTrips = [
@@ -47,36 +43,55 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
     { destination: 'Rishikesh', image: 'https://images.unsplash.com/photo-1545158535-c3f7168c28b6?w=300&h=200&fit=crop', date: 'Sep 2024' },
   ];
 
-  const handleShareProfile = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: `${userProfile.displayName} on TripSync`,
-        text: userProfile.bio,
-        url: window.location.href,
-      });
-    } else {
-      navigator.clipboard.writeText(window.location.href);
-      toast({ title: 'Profile link copied to clipboard! 📋' });
+  const handleShareProfile = (method: string) => {
+    const shareText = `Check out ${userProfile.displayName} on TripSync! ${userProfile.bio}`;
+    const shareUrl = window.location.href;
+
+    switch (method) {
+      case 'copy':
+        navigator.clipboard.writeText(shareUrl);
+        toast({ title: 'Profile link copied! 📋' });
+        break;
+      case 'whatsapp':
+        window.open(`https://wa.me/?text=${encodeURIComponent(shareText + '\n' + shareUrl)}`, '_blank');
+        toast({ title: 'Opening WhatsApp... 💬' });
+        break;
+      case 'twitter':
+        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`, '_blank');
+        toast({ title: 'Opening Twitter... 🐦' });
+        break;
+      case 'facebook':
+        window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`, '_blank');
+        toast({ title: 'Opening Facebook... 📘' });
+        break;
+      case 'native':
+        if (navigator.share) {
+          navigator.share({ title: `${userProfile.displayName} on TripSync`, text: userProfile.bio, url: shareUrl });
+        } else {
+          navigator.clipboard.writeText(shareUrl);
+          toast({ title: 'Profile link copied! 📋' });
+        }
+        break;
     }
+    setShowShareMenu(false);
+  };
+
+  const handleLogout = () => {
+    toast({ title: 'Logged out successfully 👋' });
+    onLogout?.();
   };
 
   return (
     <section className="py-20 lg:py-32 bg-background">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Profile Header */}
         <div className="relative mb-12">
           <div className="h-48 sm:h-64 rounded-3xl overflow-hidden">
             <img src={userProfile.coverImage} alt="Cover" className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent rounded-3xl" />
           </div>
-          
           <div className="absolute -bottom-16 left-8 flex items-end gap-6">
             <div className="relative">
-              <img
-                src={userProfile.avatar}
-                alt={userProfile.displayName}
-                className="w-32 h-32 rounded-3xl object-cover border-4 border-background shadow-xl"
-              />
+              <img src={userProfile.avatar} alt={userProfile.displayName} className="w-32 h-32 rounded-3xl object-cover border-4 border-background shadow-xl" />
               {userProfile.verified && (
                 <div className="absolute -bottom-2 -right-2 w-10 h-10 gradient-primary rounded-full flex items-center justify-center shadow-lg">
                   <BadgeCheck className="w-6 h-6 text-white" />
@@ -84,24 +99,12 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
               )}
             </div>
           </div>
-          
           <div className="absolute bottom-4 right-4 flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-full bg-white/90 backdrop-blur-sm"
-              onClick={() => setShowSettings(true)}
-            >
-              <Settings className="w-4 h-4 mr-2" />
-              Settings
+            <Button variant="outline" size="sm" className="rounded-full bg-white/90 backdrop-blur-sm" onClick={() => setShowSettings(true)}>
+              <Settings className="w-4 h-4 mr-2" />Settings
             </Button>
-            <Button
-              size="sm"
-              className="rounded-full gradient-primary text-white"
-              onClick={() => setShowEditProfile(true)}
-            >
-              <Edit2 className="w-4 h-4 mr-2" />
-              Edit Profile
+            <Button size="sm" className="rounded-full gradient-primary text-white" onClick={() => setShowEditProfile(true)}>
+              <Edit2 className="w-4 h-4 mr-2" />Edit Profile
             </Button>
           </div>
         </div>
@@ -111,12 +114,10 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
             <div>
               <h1 className="text-3xl font-bold text-foreground">{userProfile.displayName}, {userProfile.age}</h1>
               <div className="flex items-center gap-2 text-muted-foreground mt-2">
-                <MapPin className="w-4 h-4" />
-                <span>{userProfile.location}</span>
+                <MapPin className="w-4 h-4" /><span>{userProfile.location}</span>
               </div>
               <p className="text-foreground mt-4">{userProfile.bio}</p>
             </div>
-
             <div className="grid grid-cols-3 gap-4">
               <div className="travel-card p-6 text-center">
                 <p className="text-3xl font-bold text-foreground">{userProfile.trips}</p>
@@ -131,7 +132,6 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
                 <p className="text-muted-foreground">Following</p>
               </div>
             </div>
-
             <div className="travel-card p-6">
               <h3 className="text-lg font-semibold text-foreground mb-4">Recent Trips</h3>
               <div className="grid sm:grid-cols-3 gap-4">
@@ -173,8 +173,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
                   const Icon = interestIcons[interest] || Compass;
                   return (
                     <div key={interest} className="chip chip-primary flex items-center gap-2">
-                      <Icon className="w-4 h-4" />
-                      {interest}
+                      <Icon className="w-4 h-4" />{interest}
                     </div>
                   );
                 })}
@@ -194,33 +193,47 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
             </div>
 
             <div className="space-y-3">
-              <Button onClick={handleShareProfile} className="w-full h-12 gradient-primary text-primary-foreground rounded-xl font-semibold">
-                <Share2 className="w-5 h-5 mr-2" />
-                Share Profile
-              </Button>
+              <div className="relative">
+                <Button onClick={() => setShowShareMenu(!showShareMenu)} className="w-full h-12 gradient-primary text-primary-foreground rounded-xl font-semibold">
+                  <Share2 className="w-5 h-5 mr-2" />Share Profile
+                </Button>
+                {showShareMenu && (
+                  <div className="absolute bottom-full left-0 right-0 mb-2 bg-background border border-border rounded-2xl shadow-xl z-50 animate-fade-in overflow-hidden">
+                    <div className="p-2">
+                      <button onClick={() => handleShareProfile('whatsapp')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
+                        <Send className="w-4 h-4 text-green-500" />WhatsApp
+                      </button>
+                      <button onClick={() => handleShareProfile('twitter')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
+                        <Twitter className="w-4 h-4 text-sky-500" />Twitter / X
+                      </button>
+                      <button onClick={() => handleShareProfile('facebook')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
+                        <Facebook className="w-4 h-4 text-blue-600" />Facebook
+                      </button>
+                      <button onClick={() => handleShareProfile('copy')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
+                        <Copy className="w-4 h-4 text-muted-foreground" />Copy Link
+                      </button>
+                      {typeof navigator.share === 'function' && (
+                        <button onClick={() => handleShareProfile('native')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
+                          <Link2 className="w-4 h-4 text-muted-foreground" />More Options...
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
               <Button onClick={onOpenMessages} variant="outline" className="w-full h-12 rounded-xl font-semibold border-2 border-primary text-primary">
-                <MessageCircle className="w-5 h-5 mr-2" />
-                Messages
+                <MessageCircle className="w-5 h-5 mr-2" />Messages
               </Button>
-              <Button onClick={onLogout} variant="outline" className="w-full h-12 rounded-xl font-semibold border-destructive text-destructive hover:bg-destructive/5">
-                <LogOut className="w-5 h-5 mr-2" />
-                Log Out
+              <Button onClick={handleLogout} variant="outline" className="w-full h-12 rounded-xl font-semibold border-destructive text-destructive hover:bg-destructive/5">
+                <LogOut className="w-5 h-5 mr-2" />Log Out
               </Button>
             </div>
           </div>
         </div>
       </div>
 
-      <ProfileSettingsModal
-        isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
-        onLogout={() => { setShowSettings(false); onLogout?.(); }}
-      />
-      <EditProfileModal
-        isOpen={showEditProfile}
-        onClose={() => setShowEditProfile(false)}
-        onSave={() => { setShowEditProfile(false); toast({ title: 'Profile updated! ✅' }); }}
-      />
+      <ProfileSettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} onLogout={() => { setShowSettings(false); handleLogout(); }} />
+      <EditProfileModal isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} onSave={() => { setShowEditProfile(false); toast({ title: 'Profile updated! ✅' }); }} />
     </section>
   );
 };
