@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, Clock, Wallet, ChevronDown, ChevronUp, Sparkles, Calendar, Loader2 } from 'lucide-react';
+import { MapPin, Clock, Wallet, ChevronDown, ChevronUp, Sparkles, Calendar, Loader2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { itineraryDays } from '@/data/dummyProfiles';
 import { toast } from '@/hooks/use-toast';
@@ -20,6 +20,8 @@ interface GeneratedItinerary {
   duration: string;
   totalBudget: number;
   currency: string;
+  peopleCount?: number;
+  budgetPerPerson?: number;
   summary: string;
   days: GeneratedDay[];
   tips: string[];
@@ -30,6 +32,7 @@ const ItinerarySection: React.FC = () => {
   const [destination, setDestination] = useState('');
   const [days, setDays] = useState('');
   const [budget, setBudget] = useState('');
+  const [people, setPeople] = useState('1');
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedItinerary, setGeneratedItinerary] = useState<GeneratedItinerary | null>(null);
@@ -54,26 +57,18 @@ const ItinerarySection: React.FC = () => {
 
   const handleGenerate = async () => {
     if (!destination.trim()) {
-      toast({
-        title: "Missing destination",
-        description: "Please enter a destination to generate an itinerary.",
-        variant: "destructive",
-      });
+      toast({ title: "Missing destination", description: "Please enter a destination.", variant: "destructive" });
       return;
     }
-
     if (!days || parseInt(days) < 1) {
-      toast({
-        title: "Invalid days",
-        description: "Please enter a valid number of days.",
-        variant: "destructive",
-      });
+      toast({ title: "Invalid days", description: "Please enter valid number of days.", variant: "destructive" });
       return;
     }
 
     setIsGenerating(true);
     
     try {
+      const peopleCount = parseInt(people) || 1;
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-travel`, {
         method: 'POST',
         headers: {
@@ -86,6 +81,7 @@ const ItinerarySection: React.FC = () => {
           days: parseInt(days),
           budget: budget || '20000',
           interests: selectedInterests.length > 0 ? selectedInterests : ['general sightseeing'],
+          people: peopleCount,
         }),
       });
 
@@ -100,23 +96,13 @@ const ItinerarySection: React.FC = () => {
         setGeneratedItinerary(result.data);
         setShowGenerated(true);
         setExpandedDay(1);
-        toast({
-          title: "Itinerary Generated! 🎉",
-          description: `Your ${days}-day ${destination} itinerary is ready.`,
-        });
+        toast({ title: "Itinerary Generated! 🎉", description: `Your ${days}-day ${destination} itinerary for ${peopleCount} ${peopleCount > 1 ? 'people' : 'person'} is ready.` });
       } else {
-        toast({
-          title: "Itinerary Generated",
-          description: result.content || "Your travel plan is ready!",
-        });
+        toast({ title: "Itinerary Generated", description: result.content || "Your travel plan is ready!" });
       }
     } catch (error) {
       console.error('Error generating itinerary:', error);
-      toast({
-        title: "Generation failed",
-        description: error instanceof Error ? error.message : "Failed to generate itinerary. Please try again.",
-        variant: "destructive",
-      });
+      toast({ title: "Generation failed", description: error instanceof Error ? error.message : "Failed to generate itinerary.", variant: "destructive" });
     } finally {
       setIsGenerating(false);
     }
@@ -125,7 +111,6 @@ const ItinerarySection: React.FC = () => {
   return (
     <section className="py-20 lg:py-32 bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full text-primary text-sm font-medium mb-6">
             <Sparkles className="w-4 h-4" />
@@ -140,7 +125,6 @@ const ItinerarySection: React.FC = () => {
         </div>
 
         <div className="grid lg:grid-cols-2 gap-12">
-          {/* Input Form */}
           <div className="space-y-6">
             <div className="travel-card p-8 bg-gradient-to-br from-card to-muted/30">
               <h3 className="text-xl font-semibold text-foreground mb-6">Plan Your Trip</h3>
@@ -150,60 +134,50 @@ const ItinerarySection: React.FC = () => {
                   <label className="block text-sm font-medium text-foreground mb-2">Destination</label>
                   <div className="relative">
                     <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <input
-                      type="text"
-                      value={destination}
-                      onChange={(e) => setDestination(e.target.value)}
-                      placeholder="Where do you want to go?"
-                      className="input-field pl-12"
-                    />
+                    <input type="text" value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="Where do you want to go?" className="input-field pl-12" />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">Number of Days</label>
+                    <label className="block text-sm font-medium text-foreground mb-2">Days</label>
                     <div className="relative">
                       <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                      <input
-                        type="number"
-                        value={days}
-                        onChange={(e) => setDays(e.target.value)}
-                        placeholder="5"
-                        min="1"
-                        max="30"
-                        className="input-field pl-12"
-                      />
+                      <input type="number" value={days} onChange={(e) => setDays(e.target.value)} placeholder="5" min="1" max="30" className="input-field pl-12" />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">Budget (₹)</label>
+                    <label className="block text-sm font-medium text-foreground mb-2">People</label>
+                    <div className="relative">
+                      <Users className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                      <input type="number" value={people} onChange={(e) => setPeople(e.target.value)} placeholder="1" min="1" max="20" className="input-field pl-12" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      {parseInt(people) > 1 ? 'Group Budget (₹)' : 'Budget (₹)'}
+                    </label>
                     <div className="relative">
                       <Wallet className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                      <input
-                        type="number"
-                        value={budget}
-                        onChange={(e) => setBudget(e.target.value)}
-                        placeholder="20000"
-                        className="input-field pl-12"
-                      />
+                      <input type="number" value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="20000" className="input-field pl-12" />
                     </div>
                   </div>
                 </div>
+
+                {parseInt(people) > 1 && budget && (
+                  <div className="p-3 bg-primary/5 rounded-xl border border-primary/10">
+                    <p className="text-sm text-primary font-medium">
+                      💡 ₹{Math.round(parseInt(budget) / parseInt(people)).toLocaleString()} per person for {people} people
+                    </p>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-2">Interests</label>
                   <div className="flex flex-wrap gap-2">
                     {['Adventure', 'Food', 'Culture', 'Nature', 'Beach', 'Nightlife'].map((interest) => (
-                      <button
-                        key={interest}
-                        type="button"
-                        onClick={() => toggleInterest(interest)}
-                        className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                          selectedInterests.includes(interest)
-                            ? 'gradient-primary text-white'
-                            : 'bg-muted hover:bg-primary/10 hover:text-primary'
-                        }`}
+                      <button key={interest} type="button" onClick={() => toggleInterest(interest)}
+                        className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${selectedInterests.includes(interest) ? 'gradient-primary text-white' : 'bg-muted hover:bg-primary/10 hover:text-primary'}`}
                       >
                         {interest}
                       </button>
@@ -211,30 +185,16 @@ const ItinerarySection: React.FC = () => {
                   </div>
                 </div>
 
-                <Button 
-                  onClick={handleGenerate}
-                  disabled={isGenerating}
+                <Button onClick={handleGenerate} disabled={isGenerating}
                   className="w-full h-14 mt-4 gradient-primary text-primary-foreground rounded-2xl text-lg font-semibold shadow-glow hover:shadow-lg transition-shadow disabled:opacity-70"
                 >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-5 h-5 mr-2" />
-                      Generate AI Itinerary
-                    </>
-                  )}
+                  {isGenerating ? (<><Loader2 className="w-5 h-5 mr-2 animate-spin" />Generating...</>) : (<><Sparkles className="w-5 h-5 mr-2" />Generate AI Itinerary</>)}
                 </Button>
               </div>
             </div>
           </div>
 
-          {/* Sample Itinerary Display */}
           <div className="space-y-6">
-            {/* Trip Summary Card */}
             <div className="travel-card p-6 bg-gradient-to-br from-primary/5 to-accent/5">
               <div className="flex items-center gap-2 mb-4">
                 <Sparkles className="w-5 h-5 text-primary" />
@@ -250,7 +210,7 @@ const ItinerarySection: React.FC = () => {
                 }
               </h3>
               
-              <div className="flex items-center gap-6 text-muted-foreground mb-4">
+              <div className="flex items-center gap-6 text-muted-foreground mb-4 flex-wrap">
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4" />
                   <span>{showGenerated && generatedItinerary ? generatedItinerary.destination : 'Goa, India'}</span>
@@ -259,6 +219,12 @@ const ItinerarySection: React.FC = () => {
                   <Clock className="w-4 h-4" />
                   <span>{showGenerated && generatedItinerary ? generatedItinerary.duration : '5 Days'}</span>
                 </div>
+                {showGenerated && generatedItinerary?.peopleCount && generatedItinerary.peopleCount > 1 && (
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4" />
+                    <span>{generatedItinerary.peopleCount} people</span>
+                  </div>
+                )}
               </div>
 
               {showGenerated && generatedItinerary?.summary && (
@@ -270,55 +236,43 @@ const ItinerarySection: React.FC = () => {
                   <span className="text-sm text-muted-foreground">Estimated Total</span>
                   <p className="text-2xl font-bold text-primary">₹{totalCost.toLocaleString()}</p>
                 </div>
-                <span className="text-xs text-muted-foreground">Per person</span>
+                <span className="text-xs text-muted-foreground">
+                  {showGenerated && generatedItinerary?.budgetPerPerson 
+                    ? `₹${generatedItinerary.budgetPerPerson.toLocaleString()} per person`
+                    : 'Per person'
+                  }
+                </span>
               </div>
             </div>
 
-            {/* Day-wise Itinerary */}
             <div className="space-y-3">
               {displayDays.map((day) => (
                 <div key={day.day} className="travel-card">
-                  <button
-                    onClick={() => setExpandedDay(expandedDay === day.day ? null : day.day)}
-                    className="w-full flex items-center justify-between p-2"
-                  >
+                  <button onClick={() => setExpandedDay(expandedDay === day.day ? null : day.day)} className="w-full flex items-center justify-between p-2">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 gradient-primary rounded-xl flex items-center justify-center text-white font-bold text-lg">
-                        {day.day}
-                      </div>
+                      <div className="w-12 h-12 gradient-primary rounded-xl flex items-center justify-center text-white font-bold text-lg">{day.day}</div>
                       <div className="text-left">
                         <h4 className="font-semibold text-foreground">Day {day.day}</h4>
                         <p className="text-sm text-muted-foreground">{day.title}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-sm font-medium text-primary">
-                        ₹{day.activities.reduce((sum, act) => sum + act.cost, 0).toLocaleString()}
-                      </span>
-                      {expandedDay === day.day ? (
-                        <ChevronUp className="w-5 h-5 text-muted-foreground" />
-                      ) : (
-                        <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                      )}
+                      <span className="text-sm font-medium text-primary">₹{day.activities.reduce((sum, act) => sum + act.cost, 0).toLocaleString()}</span>
+                      {expandedDay === day.day ? <ChevronUp className="w-5 h-5 text-muted-foreground" /> : <ChevronDown className="w-5 h-5 text-muted-foreground" />}
                     </div>
                   </button>
-
                   {expandedDay === day.day && (
                     <div className="mt-4 pt-4 border-t border-border space-y-3 animate-fade-in">
                       {day.activities.map((activity, index) => (
                         <div key={index} className="flex items-start gap-3 ml-2">
                           <div className="flex flex-col items-center">
                             <div className="w-3 h-3 rounded-full gradient-primary" />
-                            {index < day.activities.length - 1 && (
-                              <div className="w-0.5 flex-1 bg-primary/20 mt-1 min-h-[24px]" />
-                            )}
+                            {index < day.activities.length - 1 && <div className="w-0.5 flex-1 bg-primary/20 mt-1 min-h-[24px]" />}
                           </div>
                           <div className="flex-1 pb-2">
                             <div className="flex items-center justify-between">
                               <span className="text-xs font-medium text-primary">{activity.time}</span>
-                              {activity.cost > 0 && (
-                                <span className="text-xs text-muted-foreground">₹{activity.cost.toLocaleString()}</span>
-                              )}
+                              {activity.cost > 0 && <span className="text-xs text-muted-foreground">₹{activity.cost.toLocaleString()}</span>}
                             </div>
                             <p className="text-sm text-foreground mt-0.5">{activity.activity}</p>
                             {'tips' in activity && (activity as { tips?: string }).tips && (
@@ -333,15 +287,13 @@ const ItinerarySection: React.FC = () => {
               ))}
             </div>
 
-            {/* Tips Section */}
             {showGenerated && generatedItinerary?.tips && generatedItinerary.tips.length > 0 && (
               <div className="travel-card p-6">
                 <h4 className="font-semibold text-foreground mb-3">💡 Travel Tips</h4>
                 <ul className="space-y-2">
                   {generatedItinerary.tips.map((tip, index) => (
                     <li key={index} className="text-sm text-muted-foreground flex items-start gap-2">
-                      <span className="text-primary">•</span>
-                      {tip}
+                      <span className="text-primary">•</span>{tip}
                     </li>
                   ))}
                 </ul>
