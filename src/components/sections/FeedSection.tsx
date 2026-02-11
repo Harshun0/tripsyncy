@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Heart, MessageCircle, Bookmark, Share2, MapPin, TrendingUp, UserPlus, UserCheck, Send, X, Copy, Facebook, Twitter, Link2 } from 'lucide-react';
 import { dummyPosts, dummyProfiles, TravelPost } from '@/data/dummyProfiles';
 import { Button } from '@/components/ui/button';
@@ -8,15 +8,30 @@ interface FeedSectionProps {
   onLikePost?: (postId: string, liked: boolean) => void;
   onCommentPost?: (postId: string, comment: string) => void;
   onSavePost?: (postId: string, saved: boolean) => void;
+  followedUsers?: Set<string>;
+  onFollow?: (userId: string, userName: string) => void;
 }
 
-const FeedSection: React.FC<FeedSectionProps> = ({ onLikePost, onCommentPost, onSavePost }) => {
+const FeedSection: React.FC<FeedSectionProps> = ({ onLikePost, onCommentPost, onSavePost, followedUsers: externalFollowed, onFollow }) => {
   const [posts, setPosts] = useState<TravelPost[]>(dummyPosts);
-  const [followedUsers, setFollowedUsers] = useState<Set<string>>(new Set());
+  const [localFollowed, setLocalFollowed] = useState<Set<string>>(new Set());
+  const followedUsers = externalFollowed || localFollowed;
   const [commentingOn, setCommentingOn] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
   const [postComments, setPostComments] = useState<Record<string, { user: string; text: string }[]>>({});
   const [shareMenuOpen, setShareMenuOpen] = useState<string | null>(null);
+  const shareRef = useRef<HTMLDivElement>(null);
+
+  // Close share menu on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (shareMenuOpen && shareRef.current && !shareRef.current.contains(e.target as Node)) {
+        setShareMenuOpen(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [shareMenuOpen]);
 
   const toggleLike = (postId: string) => {
     setPosts(posts.map(post => {
@@ -43,17 +58,16 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onLikePost, onCommentPost, on
   };
 
   const handleFollow = (userId: string, userName: string) => {
-    setFollowedUsers(prev => {
-      const next = new Set(prev);
-      if (next.has(userId)) {
-        next.delete(userId);
-        toast({ title: `Unfollowed ${userName}` });
-      } else {
-        next.add(userId);
-        toast({ title: `Following ${userName}! 🎉` });
-      }
-      return next;
-    });
+    if (onFollow) {
+      onFollow(userId, userName);
+    } else {
+      setLocalFollowed(prev => {
+        const next = new Set(prev);
+        if (next.has(userId)) { next.delete(userId); toast({ title: `Unfollowed ${userName}` }); }
+        else { next.add(userId); toast({ title: `Following ${userName}! 🎉` }); }
+        return next;
+      });
+    }
   };
 
   const handleShare = (post: TravelPost, method: string) => {
@@ -135,22 +149,14 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onLikePost, onCommentPost, on
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleFollow(post.userId, post.userName)}
-                      className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                        followedUsers.has(post.userId)
-                          ? 'bg-muted text-foreground'
-                          : 'gradient-primary text-white'
-                      }`}
-                    >
-                      {followedUsers.has(post.userId) ? (
-                        <><UserCheck className="w-3 h-3" /> Following</>
-                      ) : (
-                        <><UserPlus className="w-3 h-3" /> Follow</>
-                      )}
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => handleFollow(post.userId, post.userName)}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                      followedUsers.has(post.userId) ? 'bg-muted text-foreground' : 'gradient-primary text-white'
+                    }`}
+                  >
+                    {followedUsers.has(post.userId) ? (<><UserCheck className="w-3 h-3" /> Following</>) : (<><UserPlus className="w-3 h-3" /> Follow</>)}
+                  </button>
                 </div>
 
                 <div className="relative aspect-[16/10]">
@@ -160,58 +166,42 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onLikePost, onCommentPost, on
                 <div className="px-6 py-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <button
-                        onClick={() => toggleLike(post.id)}
-                        className="flex items-center gap-2 transition-transform hover:scale-105 active:scale-95"
-                      >
+                      <button onClick={() => toggleLike(post.id)} className="flex items-center gap-2 transition-transform hover:scale-105 active:scale-95">
                         <Heart className={`w-6 h-6 ${post.liked ? 'fill-destructive text-destructive' : 'text-foreground'}`} />
                         <span className="font-medium text-sm">{post.likes.toLocaleString()}</span>
                       </button>
-                      <button
-                        onClick={() => setCommentingOn(commentingOn === post.id ? null : post.id)}
-                        className="flex items-center gap-2 hover:text-primary transition-colors"
-                      >
+                      <button onClick={() => setCommentingOn(commentingOn === post.id ? null : post.id)} className="flex items-center gap-2 hover:text-primary transition-colors">
                         <MessageCircle className="w-6 h-6" />
                         <span className="font-medium text-sm">{post.comments}</span>
                       </button>
-                      <div className="relative">
-                        <button 
-                          onClick={() => setShareMenuOpen(shareMenuOpen === post.id ? null : post.id)} 
-                          className="hover:text-primary transition-colors"
-                        >
+                      <div className="relative" ref={shareMenuOpen === post.id ? shareRef : null}>
+                        <button onClick={() => setShareMenuOpen(shareMenuOpen === post.id ? null : post.id)} className="hover:text-primary transition-colors">
                           <Share2 className="w-6 h-6" />
                         </button>
                         {shareMenuOpen === post.id && (
                           <div className="absolute bottom-full left-0 mb-2 w-56 bg-background border border-border rounded-2xl shadow-xl z-50 animate-fade-in overflow-hidden">
                             <div className="p-2">
                               <button onClick={() => handleShare(post, 'followers')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
-                                <UserPlus className="w-4 h-4 text-primary" />
-                                Share with Followers
+                                <UserPlus className="w-4 h-4 text-primary" />Share with Followers
                               </button>
                               <button onClick={() => handleShare(post, 'whatsapp')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
-                                <Send className="w-4 h-4 text-green-500" />
-                                WhatsApp
+                                <Send className="w-4 h-4 text-green-500" />WhatsApp
                               </button>
                               <button onClick={() => handleShare(post, 'twitter')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
-                                <Twitter className="w-4 h-4 text-sky-500" />
-                                Twitter / X
+                                <Twitter className="w-4 h-4 text-sky-500" />Twitter / X
                               </button>
                               <button onClick={() => handleShare(post, 'facebook')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
-                                <Facebook className="w-4 h-4 text-blue-600" />
-                                Facebook
+                                <Facebook className="w-4 h-4 text-blue-600" />Facebook
                               </button>
                               <button onClick={() => handleShare(post, 'telegram')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
-                                <Send className="w-4 h-4 text-sky-400" />
-                                Telegram
+                                <Send className="w-4 h-4 text-sky-400" />Telegram
                               </button>
                               <button onClick={() => handleShare(post, 'copy')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
-                                <Copy className="w-4 h-4 text-muted-foreground" />
-                                Copy Link
+                                <Copy className="w-4 h-4 text-muted-foreground" />Copy Link
                               </button>
                               {typeof navigator.share === 'function' && (
                                 <button onClick={() => handleShare(post, 'native')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
-                                  <Link2 className="w-4 h-4 text-muted-foreground" />
-                                  More Options...
+                                  <Link2 className="w-4 h-4 text-muted-foreground" />More Options...
                                 </button>
                               )}
                             </div>
@@ -219,10 +209,7 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onLikePost, onCommentPost, on
                         )}
                       </div>
                     </div>
-                    <button
-                      onClick={() => toggleSave(post.id)}
-                      className="transition-transform hover:scale-105"
-                    >
+                    <button onClick={() => toggleSave(post.id)} className="transition-transform hover:scale-105">
                       <Bookmark className={`w-6 h-6 ${post.saved ? 'fill-foreground text-foreground' : 'text-foreground'}`} />
                     </button>
                   </div>
@@ -237,21 +224,15 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onLikePost, onCommentPost, on
                         <p key={i} className="text-sm"><span className="font-semibold">{c.user}</span> {c.text}</p>
                       ))}
                       <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={commentText}
-                          onChange={(e) => setCommentText(e.target.value)}
+                        <input type="text" value={commentText} onChange={(e) => setCommentText(e.target.value)}
                           onKeyDown={(e) => e.key === 'Enter' && handleComment(post.id)}
-                          placeholder="Add a comment..."
-                          className="flex-1 h-9 px-3 bg-muted rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                        />
+                          placeholder="Add a comment..." className="flex-1 h-9 px-3 bg-muted rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                         <Button onClick={() => handleComment(post.id)} size="sm" className="h-9 w-9 p-0 rounded-full gradient-primary">
                           <Send className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>
                   )}
-
                   <p className="text-xs text-muted-foreground uppercase">{post.timestamp}</p>
                 </div>
               </article>
@@ -268,9 +249,7 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onLikePost, onCommentPost, on
                 {['Goa', 'Ladakh', 'Rishikesh', 'Hampi', 'Kerala'].map((place, i) => (
                   <div key={place} className="flex items-center justify-between p-3 bg-muted/50 rounded-xl hover:bg-muted transition-colors cursor-pointer">
                     <div className="flex items-center gap-3">
-                      <span className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center text-xs font-bold text-primary">
-                        {i + 1}
-                      </span>
+                      <span className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center text-xs font-bold text-primary">{i + 1}</span>
                       <span className="font-medium text-foreground">{place}</span>
                     </div>
                     <span className="text-xs text-muted-foreground">{[342, 287, 198, 156, 423][i]} posts</span>
@@ -294,9 +273,7 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onLikePost, onCommentPost, on
                     <button
                       onClick={() => handleFollow(profile.id, profile.name)}
                       className={`px-3 py-1.5 text-xs font-medium rounded-full transition-all ${
-                        followedUsers.has(profile.id)
-                          ? 'bg-muted text-foreground'
-                          : 'gradient-primary text-white'
+                        followedUsers.has(profile.id) ? 'bg-muted text-foreground' : 'gradient-primary text-white'
                       }`}
                     >
                       {followedUsers.has(profile.id) ? 'Following' : 'Follow'}

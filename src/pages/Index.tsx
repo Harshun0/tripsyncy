@@ -10,15 +10,16 @@ import FeedSection from '@/components/sections/FeedSection';
 import ItinerarySection from '@/components/sections/ItinerarySection';
 import ExpenseSection from '@/components/sections/ExpenseSection';
 import ProfileSection from '@/components/sections/ProfileSection';
+import SearchSection from '@/components/sections/SearchSection';
 import AIChatModal from '@/components/sections/AIChatModal';
 import LoginModal from '@/components/modals/LoginModal';
-import { Heart, MessageSquare, Bookmark, UserPlus } from 'lucide-react';
+import { Heart, MessageSquare, Bookmark, UserPlus, Image } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 interface UserActivity {
-  likedPosts: { postId: string; userName: string; caption: string }[];
+  likedPosts: { postId: string; userName: string; caption: string; image: string }[];
   commentedPosts: { postId: string; userName: string; comment: string }[];
-  savedPosts: { postId: string; userName: string; caption: string }[];
+  savedPosts: { postId: string; userName: string; caption: string; image: string }[];
 }
 
 const Index: React.FC = () => {
@@ -28,6 +29,7 @@ const Index: React.FC = () => {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showMessagesPanel, setShowMessagesPanel] = useState(false);
   const [requestCount] = useState(3);
+  const [followedUsers, setFollowedUsers] = useState<Set<string>>(new Set());
 
   const [userActivity, setUserActivity] = useState<UserActivity>({
     likedPosts: [],
@@ -35,16 +37,17 @@ const Index: React.FC = () => {
     savedPosts: [],
   });
 
+  const postData: Record<string, { userName: string; caption: string; image: string }> = {
+    '1': { userName: 'Arjun Patel', caption: 'Found peace by the Ganges 🙏', image: 'https://images.unsplash.com/photo-1545158535-c3f7168c28b6?w=300&h=200&fit=crop' },
+    '2': { userName: 'Priya Sharma', caption: 'Conquered Khardung La at 18,380 ft! 🏔️', image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=300&h=200&fit=crop' },
+    '3': { userName: 'Sneha Kapoor', caption: 'Walking through history at Hampi', image: 'https://images.unsplash.com/photo-1590766940554-634a7c9a2fe4?w=300&h=200&fit=crop' },
+    '4': { userName: 'Vikram Singh', caption: 'Sunset sessions at Arambol beach 🌅', image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=300&h=200&fit=crop' },
+  };
+
   const handleLikePost = useCallback((postId: string, liked: boolean) => {
     setUserActivity(prev => {
       if (liked) {
-        const postNames: Record<string, { userName: string; caption: string }> = {
-          '1': { userName: 'Arjun Patel', caption: 'Found peace by the Ganges 🙏' },
-          '2': { userName: 'Priya Sharma', caption: 'Conquered Khardung La at 18,380 ft! 🏔️' },
-          '3': { userName: 'Sneha Kapoor', caption: 'Walking through history at Hampi' },
-          '4': { userName: 'Vikram Singh', caption: 'Sunset sessions at Arambol beach 🌅' },
-        };
-        const info = postNames[postId] || { userName: 'Unknown', caption: '' };
+        const info = postData[postId] || { userName: 'Unknown', caption: '', image: '' };
         return { ...prev, likedPosts: [...prev.likedPosts, { postId, ...info }] };
       }
       return { ...prev, likedPosts: prev.likedPosts.filter(p => p.postId !== postId) };
@@ -52,36 +55,40 @@ const Index: React.FC = () => {
   }, []);
 
   const handleCommentPost = useCallback((postId: string, comment: string) => {
-    const postNames: Record<string, string> = {
-      '1': 'Arjun Patel', '2': 'Priya Sharma', '3': 'Sneha Kapoor', '4': 'Vikram Singh',
-    };
+    const userName = postData[postId]?.userName || 'Unknown';
     setUserActivity(prev => ({
       ...prev,
-      commentedPosts: [...prev.commentedPosts, { postId, userName: postNames[postId] || 'Unknown', comment }],
+      commentedPosts: [...prev.commentedPosts, { postId, userName, comment }],
     }));
   }, []);
 
   const handleSavePost = useCallback((postId: string, saved: boolean) => {
     setUserActivity(prev => {
       if (saved) {
-        const postNames: Record<string, { userName: string; caption: string }> = {
-          '1': { userName: 'Arjun Patel', caption: 'Found peace by the Ganges 🙏' },
-          '2': { userName: 'Priya Sharma', caption: 'Conquered Khardung La at 18,380 ft! 🏔️' },
-          '3': { userName: 'Sneha Kapoor', caption: 'Walking through history at Hampi' },
-          '4': { userName: 'Vikram Singh', caption: 'Sunset sessions at Arambol beach 🌅' },
-        };
-        const info = postNames[postId] || { userName: 'Unknown', caption: '' };
+        const info = postData[postId] || { userName: 'Unknown', caption: '', image: '' };
         return { ...prev, savedPosts: [...prev.savedPosts, { postId, ...info }] };
       }
       return { ...prev, savedPosts: prev.savedPosts.filter(p => p.postId !== postId) };
     });
   }, []);
 
+  const handleFollow = useCallback((userId: string, userName: string) => {
+    setFollowedUsers(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) {
+        next.delete(userId);
+        toast({ title: `Unfollowed ${userName}` });
+      } else {
+        next.add(userId);
+        toast({ title: `Following ${userName}! 🎉` });
+      }
+      return next;
+    });
+  }, []);
+
   const handleNavigate = (section: string) => {
-    if (section === 'ai') {
-      setShowAIChat(true);
-      return;
-    }
+    if (section === 'ai') { setShowAIChat(true); return; }
+    if (section === 'login') { setShowLoginModal(true); return; }
     setActiveSection(section);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -101,10 +108,10 @@ const Index: React.FC = () => {
     const titles = { liked: 'Liked Posts', comments: 'My Comments', saved: 'Saved Posts', requests: 'Requests' };
     const Icon = icons[type];
 
-    let items: { label: string; sub: string }[] = [];
-    if (type === 'liked') items = userActivity.likedPosts.map(p => ({ label: p.userName, sub: p.caption }));
+    let items: { label: string; sub: string; image?: string }[] = [];
+    if (type === 'liked') items = userActivity.likedPosts.map(p => ({ label: p.userName, sub: p.caption, image: p.image }));
     if (type === 'comments') items = userActivity.commentedPosts.map(p => ({ label: `On ${p.userName}'s post`, sub: `"${p.comment}"` }));
-    if (type === 'saved') items = userActivity.savedPosts.map(p => ({ label: p.userName, sub: p.caption }));
+    if (type === 'saved') items = userActivity.savedPosts.map(p => ({ label: p.userName, sub: p.caption, image: p.image }));
 
     return (
       <div className="pt-20">
@@ -139,9 +146,13 @@ const Index: React.FC = () => {
               <div className="space-y-3">
                 {items.map((item, i) => (
                   <div key={i} className="travel-card p-4 flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                      <Icon className="w-5 h-5 text-primary" />
-                    </div>
+                    {item.image ? (
+                      <img src={item.image} alt="" className="w-16 h-12 rounded-xl object-cover" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                        <Icon className="w-5 h-5 text-primary" />
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-foreground text-sm">{item.label}</p>
                       <p className="text-xs text-muted-foreground truncate">{item.sub}</p>
@@ -162,21 +173,23 @@ const Index: React.FC = () => {
         return (
           <>
             <HeroSection onGetStarted={handleGetStarted} onExplore={() => handleNavigate('explore')} isLoggedIn={isLoggedIn} />
-            <FeaturesSection />
+            <FeaturesSection onNavigate={handleNavigate} isLoggedIn={isLoggedIn} />
             <TravelersSection />
             <ItinerarySection />
           </>
         );
       case 'home':
-        return <div className="pt-20"><FeedSection onLikePost={handleLikePost} onCommentPost={handleCommentPost} onSavePost={handleSavePost} /></div>;
+        return <div className="pt-20"><FeedSection onLikePost={handleLikePost} onCommentPost={handleCommentPost} onSavePost={handleSavePost} followedUsers={followedUsers} onFollow={handleFollow} /></div>;
       case 'explore':
         return <div className="pt-20"><TravelersSection /></div>;
       case 'itinerary':
         return <div className="pt-20"><ItinerarySection /></div>;
       case 'expenses':
         return <div className="pt-20"><ExpenseSection /></div>;
+      case 'search':
+        return <div className="pt-20"><SearchSection followedUsers={followedUsers} onFollow={handleFollow} /></div>;
       case 'profile':
-        return <div className="pt-20"><ProfileSection onLogout={handleLogout} onOpenMessages={() => setShowMessagesPanel(true)} /></div>;
+        return <div className="pt-20"><ProfileSection onLogout={handleLogout} onOpenMessages={() => setShowMessagesPanel(true)} followerCount={456 + followedUsers.size} followingCount={234 + followedUsers.size} /></div>;
       case 'liked':
         return renderActivityPage('liked');
       case 'comments':
@@ -189,7 +202,7 @@ const Index: React.FC = () => {
         return (
           <>
             <HeroSection onGetStarted={handleGetStarted} onExplore={() => handleNavigate('explore')} isLoggedIn={isLoggedIn} />
-            <FeaturesSection />
+            <FeaturesSection onNavigate={handleNavigate} isLoggedIn={isLoggedIn} />
           </>
         );
     }
@@ -197,14 +210,7 @@ const Index: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header
-        activeSection={activeSection}
-        onNavigate={handleNavigate}
-        isLoggedIn={isLoggedIn}
-        onLogin={handleLogin}
-        onLogout={handleLogout}
-        requestCount={requestCount}
-      />
+      <Header activeSection={activeSection} onNavigate={handleNavigate} isLoggedIn={isLoggedIn} onLogin={handleLogin} onLogout={handleLogout} requestCount={requestCount} />
       <main>{renderContent()}</main>
       <Footer />
       {isLoggedIn && (

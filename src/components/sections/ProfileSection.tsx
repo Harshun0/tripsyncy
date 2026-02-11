@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Settings, Edit2, MapPin, BadgeCheck, Award, Wallet, Heart, Mountain, Utensils, Compass, Sunrise, Camera, Share2, MessageCircle, LogOut, Copy, Facebook, Twitter, Send, Link2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ProfileSettingsModal from '@/components/modals/ProfileSettingsModal';
@@ -8,29 +8,44 @@ import { toast } from '@/hooks/use-toast';
 interface ProfileSectionProps {
   onLogout?: () => void;
   onOpenMessages?: () => void;
+  followerCount?: number;
+  followingCount?: number;
 }
 
-const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessages }) => {
+const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessages, followerCount = 456, followingCount = 234 }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
+  const shareRef = useRef<HTMLDivElement>(null);
 
-  const userProfile = {
-    name: 'You',
+  const [profileData, setProfileData] = useState({
     displayName: 'Traveler',
-    age: 25,
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face',
-    coverImage: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&h=400&fit=crop',
-    location: 'Mumbai, India',
     bio: 'Exploring the world one trip at a time ✈️ | Budget traveler | Coffee lover ☕',
+    location: 'Mumbai, India',
     budget: 'Mid-Range',
     personality: 'Ambivert',
     interests: ['Adventure', 'Food', 'Culture', 'Nature', 'Photography'],
+  });
+
+  // Close share menu on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (showShareMenu && shareRef.current && !shareRef.current.contains(e.target as Node)) {
+        setShowShareMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showShareMenu]);
+
+  const userProfile = {
+    ...profileData,
+    age: 25,
+    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face',
+    coverImage: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&h=400&fit=crop',
     badges: ['Verified Traveler', 'Solo Explorer', 'Budget Pro', 'Mountain Master'],
     verified: true,
     trips: 12,
-    followers: 456,
-    following: 234,
   };
 
   const interestIcons: Record<string, React.ElementType> = {
@@ -44,7 +59,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
   ];
 
   const handleShareProfile = (method: string) => {
-    const shareText = `Check out ${userProfile.displayName} on TripSync! ${userProfile.bio}`;
+    const shareText = `Check out ${profileData.displayName} on TripSync! ${profileData.bio}`;
     const shareUrl = window.location.href;
 
     switch (method) {
@@ -64,9 +79,13 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
         window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`, '_blank');
         toast({ title: 'Opening Facebook... 📘' });
         break;
+      case 'telegram':
+        window.open(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`, '_blank');
+        toast({ title: 'Opening Telegram... ✈️' });
+        break;
       case 'native':
         if (navigator.share) {
-          navigator.share({ title: `${userProfile.displayName} on TripSync`, text: userProfile.bio, url: shareUrl });
+          navigator.share({ title: `${profileData.displayName} on TripSync`, text: profileData.bio, url: shareUrl });
         } else {
           navigator.clipboard.writeText(shareUrl);
           toast({ title: 'Profile link copied! 📋' });
@@ -81,6 +100,12 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
     onLogout?.();
   };
 
+  const handleProfileSave = (data: typeof profileData) => {
+    setProfileData(data);
+    setShowEditProfile(false);
+    toast({ title: 'Profile updated! ✅' });
+  };
+
   return (
     <section className="py-20 lg:py-32 bg-background">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -91,7 +116,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
           </div>
           <div className="absolute -bottom-16 left-8 flex items-end gap-6">
             <div className="relative">
-              <img src={userProfile.avatar} alt={userProfile.displayName} className="w-32 h-32 rounded-3xl object-cover border-4 border-background shadow-xl" />
+              <img src={userProfile.avatar} alt={profileData.displayName} className="w-32 h-32 rounded-3xl object-cover border-4 border-background shadow-xl" />
               {userProfile.verified && (
                 <div className="absolute -bottom-2 -right-2 w-10 h-10 gradient-primary rounded-full flex items-center justify-center shadow-lg">
                   <BadgeCheck className="w-6 h-6 text-white" />
@@ -112,11 +137,11 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
         <div className="mt-20 grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
             <div>
-              <h1 className="text-3xl font-bold text-foreground">{userProfile.displayName}, {userProfile.age}</h1>
+              <h1 className="text-3xl font-bold text-foreground">{profileData.displayName}, {userProfile.age}</h1>
               <div className="flex items-center gap-2 text-muted-foreground mt-2">
-                <MapPin className="w-4 h-4" /><span>{userProfile.location}</span>
+                <MapPin className="w-4 h-4" /><span>{profileData.location}</span>
               </div>
-              <p className="text-foreground mt-4">{userProfile.bio}</p>
+              <p className="text-foreground mt-4">{profileData.bio}</p>
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div className="travel-card p-6 text-center">
@@ -124,11 +149,11 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
                 <p className="text-muted-foreground">Trips</p>
               </div>
               <div className="travel-card p-6 text-center">
-                <p className="text-3xl font-bold text-foreground">{userProfile.followers}</p>
+                <p className="text-3xl font-bold text-foreground">{followerCount}</p>
                 <p className="text-muted-foreground">Followers</p>
               </div>
               <div className="travel-card p-6 text-center">
-                <p className="text-3xl font-bold text-foreground">{userProfile.following}</p>
+                <p className="text-3xl font-bold text-foreground">{followingCount}</p>
                 <p className="text-muted-foreground">Following</p>
               </div>
             </div>
@@ -155,21 +180,21 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
                   <Wallet className="w-5 h-5 text-primary" />
                   <span className="text-sm text-muted-foreground">Budget</span>
                 </div>
-                <p className="font-semibold text-foreground">{userProfile.budget}</p>
+                <p className="font-semibold text-foreground">{profileData.budget}</p>
               </div>
               <div className="travel-card p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Heart className="w-5 h-5 text-secondary" />
                   <span className="text-sm text-muted-foreground">Personality</span>
                 </div>
-                <p className="font-semibold text-foreground">{userProfile.personality}</p>
+                <p className="font-semibold text-foreground">{profileData.personality}</p>
               </div>
             </div>
 
             <div className="travel-card p-6">
               <h4 className="font-semibold text-foreground mb-4">Interests</h4>
               <div className="flex flex-wrap gap-2">
-                {userProfile.interests.map((interest) => {
+                {profileData.interests.map((interest) => {
                   const Icon = interestIcons[interest] || Compass;
                   return (
                     <div key={interest} className="chip chip-primary flex items-center gap-2">
@@ -193,7 +218,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
             </div>
 
             <div className="space-y-3">
-              <div className="relative">
+              <div className="relative" ref={shareRef}>
                 <Button onClick={() => setShowShareMenu(!showShareMenu)} className="w-full h-12 gradient-primary text-primary-foreground rounded-xl font-semibold">
                   <Share2 className="w-5 h-5 mr-2" />Share Profile
                 </Button>
@@ -208,6 +233,9 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
                       </button>
                       <button onClick={() => handleShareProfile('facebook')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
                         <Facebook className="w-4 h-4 text-blue-600" />Facebook
+                      </button>
+                      <button onClick={() => handleShareProfile('telegram')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
+                        <Send className="w-4 h-4 text-sky-400" />Telegram
                       </button>
                       <button onClick={() => handleShareProfile('copy')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
                         <Copy className="w-4 h-4 text-muted-foreground" />Copy Link
@@ -233,7 +261,12 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
       </div>
 
       <ProfileSettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} onLogout={() => { setShowSettings(false); handleLogout(); }} />
-      <EditProfileModal isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} onSave={() => { setShowEditProfile(false); toast({ title: 'Profile updated! ✅' }); }} />
+      <EditProfileModal
+        isOpen={showEditProfile}
+        onClose={() => setShowEditProfile(false)}
+        onSave={handleProfileSave}
+        initialData={profileData}
+      />
     </section>
   );
 };

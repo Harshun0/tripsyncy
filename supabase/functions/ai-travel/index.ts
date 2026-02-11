@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { destination, days, budget, interests, type } = await req.json();
+    const { destination, days, budget, interests, type, people } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
@@ -22,6 +22,9 @@ serve(async (req) => {
     let userPrompt = "";
 
     if (type === "itinerary") {
+      const peopleCount = people || 1;
+      const budgetType = peopleCount > 1 ? "group budget" : "budget per person";
+      
       systemPrompt = `You are TripSync AI, an expert travel planner. Generate detailed, practical travel itineraries in JSON format.
       
 Your response MUST be a valid JSON object with this exact structure:
@@ -30,6 +33,8 @@ Your response MUST be a valid JSON object with this exact structure:
   "duration": "string",
   "totalBudget": number,
   "currency": "₹",
+  "peopleCount": number,
+  "budgetPerPerson": number,
   "summary": "string",
   "days": [
     {
@@ -48,15 +53,18 @@ Your response MUST be a valid JSON object with this exact structure:
   "tips": ["string"]
 }
 
-Make the itinerary practical, fun, and aligned with the user's budget and interests. Include estimated costs for each activity in INR (₹). The total should match the budget constraint.`;
+Make the itinerary practical, fun, and aligned with the user's budget and interests. Include estimated costs for each activity in INR (₹). 
+For ${peopleCount} ${peopleCount > 1 ? 'people' : 'person'}, the costs should reflect ${budgetType}. 
+If it's a group, mention group discounts and shared costs where applicable.
+The total should match the budget constraint.
+IMPORTANT: Do NOT use markdown formatting like ** or *** in any text fields. Use plain text only.`;
 
-      userPrompt = `Create a ${days}-day travel itinerary for ${destination} with a budget of ₹${budget}.
+      userPrompt = `Create a ${days}-day travel itinerary for ${destination} for ${peopleCount} ${peopleCount > 1 ? 'people' : 'person'} with a ${budgetType} of ₹${budget}.
       
 User interests: ${interests?.join(", ") || "general sightseeing"}
 
-Provide a complete day-by-day plan with specific timings, activities, estimated costs, and helpful tips. Make sure the total cost stays within the budget.`;
+Provide a complete day-by-day plan with specific timings, activities, estimated costs${peopleCount > 1 ? ' (mention per person and group costs)' : ''}, and helpful tips. Make sure the total cost stays within the budget.`;
     } else {
-      // General AI chat
       systemPrompt = `You are TripSync AI, a friendly and knowledgeable travel assistant. You help users with:
 - Planning trips and itineraries
 - Finding travel companions
@@ -64,9 +72,17 @@ Provide a complete day-by-day plan with specific timings, activities, estimated 
 - Safety tips and emergency information
 - Local recommendations and hidden gems
 
-Be conversational, helpful, and enthusiastic about travel. Use emojis sparingly to keep the tone friendly. Provide actionable advice.`;
+IMPORTANT FORMATTING RULES:
+- Do NOT use markdown formatting like **, ***, or # symbols
+- Use plain text with emojis for emphasis
+- Use bullet points with • symbol
+- For important topics, write them followed by a colon on their own line
+- Keep responses organized with clear sections
+- Use numbered lists (1. 2. 3.) for steps or sequences
+- Be conversational, helpful, and enthusiastic about travel
+- Provide actionable advice with specific details`;
 
-      userPrompt = destination; // In chat mode, destination contains the user message
+      userPrompt = destination;
     }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -110,10 +126,8 @@ Be conversational, helpful, and enthusiastic about travel. Use emojis sparingly 
       throw new Error("No content in AI response");
     }
 
-    // For itinerary type, try to parse JSON from the response
     if (type === "itinerary") {
       try {
-        // Extract JSON from the response (it might be wrapped in markdown code blocks)
         let jsonContent = content;
         const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
         if (jsonMatch) {
@@ -126,7 +140,6 @@ Be conversational, helpful, and enthusiastic about travel. Use emojis sparingly 
         );
       } catch (parseError) {
         console.error("Failed to parse itinerary JSON:", parseError);
-        // Return as text if JSON parsing fails
         return new Response(
           JSON.stringify({ type: "text", content }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
