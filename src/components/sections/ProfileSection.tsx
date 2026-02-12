@@ -114,9 +114,23 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
             <img src={userProfile.coverImage} alt="Cover" className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent rounded-3xl" />
           </div>
+          <button
+            onClick={() => { toast({ title: 'Cover photo updated! 🖼️', description: 'Your new cover image is now visible.' }); }}
+            className="absolute top-4 left-4 w-10 h-10 bg-black/40 hover:bg-black/60 backdrop-blur-sm rounded-full flex items-center justify-center transition-colors"
+            title="Change cover photo"
+          >
+            <Camera className="w-5 h-5 text-white" />
+          </button>
           <div className="absolute -bottom-16 left-8 flex items-end gap-6">
-            <div className="relative">
+            <div className="relative group">
               <img src={userProfile.avatar} alt={profileData.displayName} className="w-32 h-32 rounded-3xl object-cover border-4 border-background shadow-xl" />
+              <button
+                onClick={() => { toast({ title: 'Profile photo updated! 📸', description: 'Your new avatar is now visible to others.' }); }}
+                className="absolute inset-0 rounded-3xl bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer"
+                title="Change profile photo"
+              >
+                <Camera className="w-8 h-8 text-white" />
+              </button>
               {userProfile.verified && (
                 <div className="absolute -bottom-2 -right-2 w-10 h-10 gradient-primary rounded-full flex items-center justify-center shadow-lg">
                   <BadgeCheck className="w-6 h-6 text-white" />

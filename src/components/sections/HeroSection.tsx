@@ -117,53 +117,35 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onGetStarted, onExplore, isLo
         </svg>
       </div>
 
-      {/* How It Works Modal - Interactive Demo */}
+      {/* How It Works Modal - Video */}
       {showVideo && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-3xl bg-background rounded-3xl overflow-hidden shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in" onClick={() => setShowVideo(false)}>
+          <div className="relative w-full max-w-4xl bg-background rounded-3xl overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
             <button
               onClick={() => setShowVideo(false)}
-              className="absolute top-4 right-4 z-10 w-10 h-10 bg-muted hover:bg-muted/80 rounded-full flex items-center justify-center transition-colors"
+              className="absolute top-4 right-4 z-10 w-10 h-10 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center transition-colors"
             >
-              <X className="w-5 h-5" />
+              <X className="w-5 h-5 text-white" />
             </button>
-            
-            <div className="p-8">
-              <div className="text-center mb-8">
-                <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full text-primary text-sm font-medium mb-4">
-                  <Play className="w-4 h-4" />
-                  How TripSync Works
-                </div>
-                <h2 className="text-2xl sm:text-3xl font-bold text-foreground">
-                  Your Journey in <span className="text-gradient">6 Simple Steps</span>
-                </h2>
-                <p className="text-muted-foreground mt-2">From signup to your dream trip — here's how TripSync makes it happen</p>
-              </div>
-
-              <div className="space-y-4">
-                {demoSteps.map((step, index) => (
-                  <div key={index} className="flex gap-4 p-4 bg-muted/50 rounded-2xl hover:bg-muted transition-colors group">
-                    <div className="flex-shrink-0 w-12 h-12 gradient-primary rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-glow">
-                      {index + 1}
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">{step.title}</h3>
-                      <p className="text-sm text-muted-foreground mt-1">{step.description}</p>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-muted-foreground self-center opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-8 text-center">
-                <Button
-                  onClick={() => { setShowVideo(false); onGetStarted(); }}
-                  className="h-14 px-8 gradient-primary text-primary-foreground rounded-2xl text-lg font-semibold shadow-glow"
-                >
-                  Get Started Now
-                  <ArrowRight className="w-5 h-5 ml-2" />
-                </Button>
-              </div>
+            <div className="aspect-video w-full">
+              <iframe
+                src="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0"
+                title="How TripSync Works"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                className="w-full h-full"
+              />
+            </div>
+            <div className="p-6 text-center">
+              <h3 className="text-xl font-bold text-foreground mb-2">Ready to start your journey?</h3>
+              <p className="text-muted-foreground mb-4">Sign up now and find your perfect travel companions</p>
+              <Button
+                onClick={() => { setShowVideo(false); onGetStarted(); }}
+                className="h-12 px-8 gradient-primary text-primary-foreground rounded-2xl text-lg font-semibold shadow-glow"
+              >
+                Get Started Now
+                <ArrowRight className="w-5 h-5 ml-2" />
+              </Button>
             </div>
           </div>
         </div>
