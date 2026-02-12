@@ -22,9 +22,6 @@ serve(async (req) => {
     let userPrompt = "";
 
     if (type === "itinerary") {
-      const peopleCount = people || 1;
-      const budgetType = peopleCount > 1 ? "group budget" : "budget per person";
-      
       systemPrompt = `You are TripSync AI, an expert travel planner. Generate detailed, practical travel itineraries in JSON format.
       
 Your response MUST be a valid JSON object with this exact structure:
@@ -33,8 +30,6 @@ Your response MUST be a valid JSON object with this exact structure:
   "duration": "string",
   "totalBudget": number,
   "currency": "₹",
-  "peopleCount": number,
-  "budgetPerPerson": number,
   "summary": "string",
   "days": [
     {
@@ -54,16 +49,14 @@ Your response MUST be a valid JSON object with this exact structure:
 }
 
 Make the itinerary practical, fun, and aligned with the user's budget and interests. Include estimated costs for each activity in INR (₹). 
-For ${peopleCount} ${peopleCount > 1 ? 'people' : 'person'}, the costs should reflect ${budgetType}. 
-If it's a group, mention group discounts and shared costs where applicable.
-The total should match the budget constraint.
+The budget is per person. The total should match the budget constraint.
 IMPORTANT: Do NOT use markdown formatting like ** or *** in any text fields. Use plain text only.`;
 
-      userPrompt = `Create a ${days}-day travel itinerary for ${destination} for ${peopleCount} ${peopleCount > 1 ? 'people' : 'person'} with a ${budgetType} of ₹${budget}.
+      userPrompt = `Create a ${days}-day travel itinerary for ${destination} for a single person with a budget of ₹${budget}.
       
 User interests: ${interests?.join(", ") || "general sightseeing"}
 
-Provide a complete day-by-day plan with specific timings, activities, estimated costs${peopleCount > 1 ? ' (mention per person and group costs)' : ''}, and helpful tips. Make sure the total cost stays within the budget.`;
+Provide a complete day-by-day plan with specific timings, activities, estimated costs, and helpful tips. Make sure the total cost stays within the budget.`;
     } else {
       systemPrompt = `You are TripSync AI, a friendly and knowledgeable travel assistant. You help users with:
 - Planning trips and itineraries

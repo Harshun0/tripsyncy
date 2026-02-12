@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, Clock, Wallet, ChevronDown, ChevronUp, Sparkles, Calendar, Loader2, Users } from 'lucide-react';
+import { MapPin, Clock, Wallet, ChevronDown, ChevronUp, Sparkles, Calendar, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { itineraryDays } from '@/data/dummyProfiles';
 import { toast } from '@/hooks/use-toast';
@@ -32,7 +32,6 @@ const ItinerarySection: React.FC = () => {
   const [destination, setDestination] = useState('');
   const [days, setDays] = useState('');
   const [budget, setBudget] = useState('');
-  const [people, setPeople] = useState('1');
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedItinerary, setGeneratedItinerary] = useState<GeneratedItinerary | null>(null);
@@ -68,7 +67,7 @@ const ItinerarySection: React.FC = () => {
     setIsGenerating(true);
     
     try {
-      const peopleCount = parseInt(people) || 1;
+      const peopleCount = 1;
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-travel`, {
         method: 'POST',
         headers: {
@@ -81,7 +80,7 @@ const ItinerarySection: React.FC = () => {
           days: parseInt(days),
           budget: budget || '20000',
           interests: selectedInterests.length > 0 ? selectedInterests : ['general sightseeing'],
-          people: peopleCount,
+          people: 1,
         }),
       });
 
@@ -96,7 +95,7 @@ const ItinerarySection: React.FC = () => {
         setGeneratedItinerary(result.data);
         setShowGenerated(true);
         setExpandedDay(1);
-        toast({ title: "Itinerary Generated! 🎉", description: `Your ${days}-day ${destination} itinerary for ${peopleCount} ${peopleCount > 1 ? 'people' : 'person'} is ready.` });
+        toast({ title: "Itinerary Generated! 🎉", description: `Your ${days}-day ${destination} itinerary is ready.` });
       } else {
         toast({ title: "Itinerary Generated", description: result.content || "Your travel plan is ready!" });
       }
@@ -138,7 +137,7 @@ const ItinerarySection: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">Days</label>
                     <div className="relative">
@@ -147,30 +146,13 @@ const ItinerarySection: React.FC = () => {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">People</label>
-                    <div className="relative">
-                      <Users className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                      <input type="number" value={people} onChange={(e) => setPeople(e.target.value)} placeholder="1" min="1" max="20" className="input-field pl-12" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">
-                      {parseInt(people) > 1 ? 'Group Budget (₹)' : 'Budget (₹)'}
-                    </label>
+                    <label className="block text-sm font-medium text-foreground mb-2">Budget (₹)</label>
                     <div className="relative">
                       <Wallet className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                       <input type="number" value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="20000" className="input-field pl-12" />
                     </div>
                   </div>
                 </div>
-
-                {parseInt(people) > 1 && budget && (
-                  <div className="p-3 bg-primary/5 rounded-xl border border-primary/10">
-                    <p className="text-sm text-primary font-medium">
-                      💡 ₹{Math.round(parseInt(budget) / parseInt(people)).toLocaleString()} per person for {people} people
-                    </p>
-                  </div>
-                )}
 
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-2">Interests</label>
@@ -219,12 +201,6 @@ const ItinerarySection: React.FC = () => {
                   <Clock className="w-4 h-4" />
                   <span>{showGenerated && generatedItinerary ? generatedItinerary.duration : '5 Days'}</span>
                 </div>
-                {showGenerated && generatedItinerary?.peopleCount && generatedItinerary.peopleCount > 1 && (
-                  <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4" />
-                    <span>{generatedItinerary.peopleCount} people</span>
-                  </div>
-                )}
               </div>
 
               {showGenerated && generatedItinerary?.summary && (
@@ -236,12 +212,7 @@ const ItinerarySection: React.FC = () => {
                   <span className="text-sm text-muted-foreground">Estimated Total</span>
                   <p className="text-2xl font-bold text-primary">₹{totalCost.toLocaleString()}</p>
                 </div>
-                <span className="text-xs text-muted-foreground">
-                  {showGenerated && generatedItinerary?.budgetPerPerson 
-                    ? `₹${generatedItinerary.budgetPerPerson.toLocaleString()} per person`
-                    : 'Per person'
-                  }
-                </span>
+                <span className="text-xs text-muted-foreground">Per person</span>
               </div>
             </div>
 
