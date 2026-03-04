@@ -8,13 +8,16 @@ import FeaturesSection from '@/components/sections/FeaturesSection';
 import TravelersSection from '@/components/sections/TravelersSection';
 import FeedSection from '@/components/sections/FeedSection';
 import ItinerarySection from '@/components/sections/ItinerarySection';
+import ItineraryIntroSection from '@/components/sections/ItineraryIntroSection';
 import ExpenseSection from '@/components/sections/ExpenseSection';
 import ProfileSection from '@/components/sections/ProfileSection';
 import SearchSection from '@/components/sections/SearchSection';
 import AIChatModal from '@/components/sections/AIChatModal';
 import LoginModal from '@/components/modals/LoginModal';
-import { Heart, MessageSquare, Bookmark, UserPlus, Image } from 'lucide-react';
+import TripCreateScreen from '@/components/screens/TripCreateScreen';
+import { Heart, MessageSquare, Bookmark, UserPlus } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 interface UserActivity {
   likedPosts: { postId: string; userName: string; caption: string; image: string }[];
@@ -23,8 +26,10 @@ interface UserActivity {
 }
 
 const Index: React.FC = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [activeSection, setActiveSection] = useState('landing');
+  const { user, loading, signOut } = useAuth();
+  const isLoggedIn = !!user;
+
+  const [activeSection, setActiveSection] = useState(isLoggedIn ? 'home' : 'landing');
   const [showAIChat, setShowAIChat] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showMessagesPanel, setShowMessagesPanel] = useState(false);
@@ -32,9 +37,7 @@ const Index: React.FC = () => {
   const [followedUsers, setFollowedUsers] = useState<Set<string>>(new Set());
 
   const [userActivity, setUserActivity] = useState<UserActivity>({
-    likedPosts: [],
-    commentedPosts: [],
-    savedPosts: [],
+    likedPosts: [], commentedPosts: [], savedPosts: [],
   });
 
   const postData: Record<string, { userName: string; caption: string; image: string }> = {
@@ -45,43 +48,29 @@ const Index: React.FC = () => {
   };
 
   const handleLikePost = useCallback((postId: string, liked: boolean) => {
-    setUserActivity(prev => {
-      if (liked) {
-        const info = postData[postId] || { userName: 'Unknown', caption: '', image: '' };
-        return { ...prev, likedPosts: [...prev.likedPosts, { postId, ...info }] };
-      }
-      return { ...prev, likedPosts: prev.likedPosts.filter(p => p.postId !== postId) };
-    });
+    setUserActivity(prev => liked
+      ? { ...prev, likedPosts: [...prev.likedPosts, { postId, ...(postData[postId] || { userName: 'Unknown', caption: '', image: '' }) }] }
+      : { ...prev, likedPosts: prev.likedPosts.filter(p => p.postId !== postId) }
+    );
   }, []);
 
   const handleCommentPost = useCallback((postId: string, comment: string) => {
     const userName = postData[postId]?.userName || 'Unknown';
-    setUserActivity(prev => ({
-      ...prev,
-      commentedPosts: [...prev.commentedPosts, { postId, userName, comment }],
-    }));
+    setUserActivity(prev => ({ ...prev, commentedPosts: [...prev.commentedPosts, { postId, userName, comment }] }));
   }, []);
 
   const handleSavePost = useCallback((postId: string, saved: boolean) => {
-    setUserActivity(prev => {
-      if (saved) {
-        const info = postData[postId] || { userName: 'Unknown', caption: '', image: '' };
-        return { ...prev, savedPosts: [...prev.savedPosts, { postId, ...info }] };
-      }
-      return { ...prev, savedPosts: prev.savedPosts.filter(p => p.postId !== postId) };
-    });
+    setUserActivity(prev => saved
+      ? { ...prev, savedPosts: [...prev.savedPosts, { postId, ...(postData[postId] || { userName: 'Unknown', caption: '', image: '' }) }] }
+      : { ...prev, savedPosts: prev.savedPosts.filter(p => p.postId !== postId) }
+    );
   }, []);
 
   const handleFollow = useCallback((userId: string, userName: string) => {
     setFollowedUsers(prev => {
       const next = new Set(prev);
-      if (next.has(userId)) {
-        next.delete(userId);
-        toast({ title: `Unfollowed ${userName}` });
-      } else {
-        next.add(userId);
-        toast({ title: `Following ${userName}! 🎉` });
-      }
+      if (next.has(userId)) { next.delete(userId); toast({ title: `Unfollowed ${userName}` }); }
+      else { next.add(userId); toast({ title: `Following ${userName}! 🎉` }); }
       return next;
     });
   }, []);
@@ -93,21 +82,28 @@ const Index: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleLogin = () => { setShowLoginModal(true); };
-  const handleLoginComplete = () => { setIsLoggedIn(true); setShowLoginModal(false); setActiveSection('home'); };
-  const handleGetStarted = () => { if (isLoggedIn) { handleNavigate('home'); } else { setShowLoginModal(true); } };
-  const handleLogout = () => {
-    setIsLoggedIn(false);
+  const handleLogin = () => setShowLoginModal(true);
+  const handleLoginComplete = () => { setShowLoginModal(false); setActiveSection('home'); };
+  const handleGetStarted = () => { if (isLoggedIn) handleNavigate('home'); else setShowLoginModal(true); };
+  const handleLogout = async () => {
+    await signOut();
     setActiveSection('landing');
     setShowMessagesPanel(false);
     toast({ title: 'Logged out successfully 👋' });
   };
 
+  // Sync activeSection with auth state
+  React.useEffect(() => {
+    if (!loading) {
+      if (isLoggedIn && activeSection === 'landing') setActiveSection('home');
+      if (!isLoggedIn && activeSection !== 'landing') setActiveSection('landing');
+    }
+  }, [isLoggedIn, loading]);
+
   const renderActivityPage = (type: 'liked' | 'comments' | 'saved' | 'requests') => {
     const icons = { liked: Heart, comments: MessageSquare, saved: Bookmark, requests: UserPlus };
     const titles = { liked: 'Liked Posts', comments: 'My Comments', saved: 'Saved Posts', requests: 'Requests' };
     const Icon = icons[type];
-
     let items: { label: string; sub: string; image?: string }[] = [];
     if (type === 'liked') items = userActivity.likedPosts.map(p => ({ label: p.userName, sub: p.caption, image: p.image }));
     if (type === 'comments') items = userActivity.commentedPosts.map(p => ({ label: `On ${p.userName}'s post`, sub: `"${p.comment}"` }));
@@ -118,45 +114,26 @@ const Index: React.FC = () => {
         <section className="py-20 bg-background">
           <div className="max-w-3xl mx-auto px-4">
             <div className="flex items-center gap-3 mb-8">
-              <div className="w-12 h-12 gradient-primary rounded-xl flex items-center justify-center">
-                <Icon className="w-6 h-6 text-white" />
-              </div>
+              <div className="w-12 h-12 gradient-primary rounded-xl flex items-center justify-center"><Icon className="w-6 h-6 text-white" /></div>
               <h1 className="text-2xl font-bold text-foreground">{titles[type]}</h1>
             </div>
             {type === 'requests' ? (
               <div className="text-center py-12">
                 <p className="text-muted-foreground mb-4">Open the Messages panel to view and manage your trip requests.</p>
-                <button onClick={() => setShowMessagesPanel(true)} className="px-6 py-3 gradient-primary text-white rounded-xl font-medium">
-                  Open Messages
-                </button>
+                <button onClick={() => setShowMessagesPanel(true)} className="px-6 py-3 gradient-primary text-white rounded-xl font-medium">Open Messages</button>
               </div>
             ) : items.length === 0 ? (
               <div className="text-center py-16">
-                <div className="w-20 h-20 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center">
-                  <Icon className="w-10 h-10 text-muted-foreground" />
-                </div>
+                <div className="w-20 h-20 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center"><Icon className="w-10 h-10 text-muted-foreground" /></div>
                 <p className="text-lg font-medium text-foreground mb-2">Nothing here yet</p>
-                <p className="text-muted-foreground">
-                  {type === 'liked' && 'Posts you like will appear here'}
-                  {type === 'comments' && 'Your comments on posts will appear here'}
-                  {type === 'saved' && 'Posts you save will appear here'}
-                </p>
+                <p className="text-muted-foreground">{type === 'liked' && 'Posts you like will appear here'}{type === 'comments' && 'Your comments will appear here'}{type === 'saved' && 'Posts you save will appear here'}</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {items.map((item, i) => (
                   <div key={i} className="travel-card p-4 flex items-center gap-4">
-                    {item.image ? (
-                      <img src={item.image} alt="" className="w-16 h-12 rounded-xl object-cover" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                        <Icon className="w-5 h-5 text-primary" />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-foreground text-sm">{item.label}</p>
-                      <p className="text-xs text-muted-foreground truncate">{item.sub}</p>
-                    </div>
+                    {item.image ? <img src={item.image} alt="" className="w-16 h-12 rounded-xl object-cover" /> : <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center"><Icon className="w-5 h-5 text-primary" /></div>}
+                    <div className="flex-1 min-w-0"><p className="font-medium text-foreground text-sm">{item.label}</p><p className="text-xs text-muted-foreground truncate">{item.sub}</p></div>
                   </div>
                 ))}
               </div>
@@ -175,7 +152,7 @@ const Index: React.FC = () => {
             <HeroSection onGetStarted={handleGetStarted} onExplore={() => handleNavigate('explore')} isLoggedIn={isLoggedIn} />
             <FeaturesSection onNavigate={handleNavigate} isLoggedIn={isLoggedIn} />
             <TravelersSection />
-            <ItinerarySection />
+            <ItineraryIntroSection onNavigate={handleNavigate} isLoggedIn={isLoggedIn} />
           </>
         );
       case 'home':
@@ -189,15 +166,13 @@ const Index: React.FC = () => {
       case 'search':
         return <div className="pt-20"><SearchSection followedUsers={followedUsers} onFollow={handleFollow} /></div>;
       case 'profile':
-        return <div className="pt-20"><ProfileSection onLogout={handleLogout} onOpenMessages={() => setShowMessagesPanel(true)} followerCount={456 + followedUsers.size} followingCount={234 + followedUsers.size} /></div>;
-      case 'liked':
-        return renderActivityPage('liked');
-      case 'comments':
-        return renderActivityPage('comments');
-      case 'saved':
-        return renderActivityPage('saved');
-      case 'requests':
-        return renderActivityPage('requests');
+        return <div className="pt-20"><ProfileSection onLogout={handleLogout} onOpenMessages={() => setShowMessagesPanel(true)} followerCount={followedUsers.size} followingCount={followedUsers.size} /></div>;
+      case 'create-trip':
+        return <div className="pt-20"><TripCreateScreen onBack={() => handleNavigate('home')} /></div>;
+      case 'liked': return renderActivityPage('liked');
+      case 'comments': return renderActivityPage('comments');
+      case 'saved': return renderActivityPage('saved');
+      case 'requests': return renderActivityPage('requests');
       default:
         return (
           <>
@@ -207,6 +182,10 @@ const Index: React.FC = () => {
         );
     }
   };
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center bg-background"><div className="w-12 h-12 gradient-primary rounded-2xl flex items-center justify-center animate-pulse"><span className="text-white font-bold text-lg">T</span></div></div>;
+  }
 
   return (
     <div className="min-h-screen bg-background">
