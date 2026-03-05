@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, Edit2, MapPin, BadgeCheck, Wallet, Heart, Mountain, Utensils, Compass, Sunrise, Camera, Share2, MessageCircle, LogOut, Copy, Facebook, Twitter, Send } from 'lucide-react';
+import { Settings, Edit2, MapPin, BadgeCheck, Award, Wallet, Heart, Mountain, Utensils, Compass, Sunrise, Camera, Share2, MessageCircle, LogOut, Copy, Facebook, Twitter, Send, Link2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ProfileSettingsModal from '@/components/modals/ProfileSettingsModal';
 import EditProfileModal from '@/components/modals/EditProfileModal';
@@ -10,17 +10,15 @@ import { supabase } from '@/integrations/supabase/client';
 interface ProfileSectionProps {
   onLogout?: () => void;
   onOpenMessages?: () => void;
+  followerCount?: number;
+  followingCount?: number;
 }
 
-const db = supabase as any;
-
-const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessages }) => {
-  const { profile, updateProfile, signOut, user, refreshProfile } = useAuth();
+const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessages, followerCount = 0, followingCount = 0 }) => {
+  const { profile, updateProfile, signOut } = useAuth();
   const [showSettings, setShowSettings] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
-  const [followerCount, setFollowerCount] = useState(0);
-  const [followingCount, setFollowingCount] = useState(0);
   const shareRef = useRef<HTMLDivElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -33,21 +31,8 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
     return () => document.removeEventListener('mousedown', handleClick);
   }, [showShareMenu]);
 
-  useEffect(() => {
-    const loadCounts = async () => {
-      if (!user) return;
-      const [{ count: followers }, { count: following }] = await Promise.all([
-        db.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', user.id).eq('status', 'accepted'),
-        db.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', user.id).eq('status', 'accepted'),
-      ]);
-      setFollowerCount(followers || 0);
-      setFollowingCount(following || 0);
-    };
-    loadCounts();
-  }, [user]);
-
   const displayName = profile?.display_name || 'Traveler';
-  const bio = profile?.bio || 'Complete your profile to help others discover you.';
+  const bio = profile?.bio || 'Exploring the world one trip at a time ✈️';
   const location = profile?.location || 'Earth';
   const budget = profile?.budget || 'Mid-Range';
   const personality = profile?.personality || 'Ambivert';
@@ -59,36 +44,31 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
     Adventure: Mountain, Food: Utensils, Culture: Compass, Nature: Sunrise, Photography: Camera, Spirituality: Heart,
   };
 
-  const uploadImage = async (file: File, type: 'avatar' | 'cover') => {
-    if (!user) return;
-    const ext = file.name.split('.').pop() || 'jpg';
-    const path = `${user.id}/${type}-${Date.now()}.${ext}`;
-    const { error: uploadError } = await supabase.storage.from('profile-media').upload(path, file, { upsert: true, contentType: file.type });
-    if (uploadError) {
-      toast({ title: 'Upload failed', description: uploadError.message, variant: 'destructive' });
-      return;
-    }
-
-    const { data: publicData } = supabase.storage.from('profile-media').getPublicUrl(path);
-    const publicUrl = publicData.publicUrl;
-
-    const { error } = await updateProfile(type === 'avatar' ? ({ avatar_url: publicUrl } as any) : ({ cover_url: publicUrl } as any));
-    if (error) {
-      toast({ title: 'Update failed', description: error, variant: 'destructive' });
-      return;
-    }
-
-    await refreshProfile();
-    toast({ title: type === 'avatar' ? 'Profile photo updated 📸' : 'Cover photo updated 🖼️' });
+  const handleFileUpload = async (file: File, type: 'avatar' | 'cover') => {
+    // Convert to data URL for now (storage buckets not available)
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      if (type === 'avatar') {
+        await updateProfile({ avatar_url: dataUrl } as any);
+        toast({ title: 'Profile photo updated! 📸' });
+      } else {
+        await updateProfile({ cover_url: dataUrl } as any);
+        toast({ title: 'Cover photo updated! 🖼️' });
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleShareProfile = (method: string) => {
     const shareText = `Check out ${displayName} on TripSync! ${bio}`;
     const shareUrl = window.location.href;
-    if (method === 'copy') { navigator.clipboard.writeText(shareUrl); toast({ title: 'Profile link copied 📋' }); }
-    if (method === 'whatsapp') window.open(`https://wa.me/?text=${encodeURIComponent(`${shareText}\n${shareUrl}`)}`, '_blank');
-    if (method === 'twitter') window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`, '_blank');
-    if (method === 'facebook') window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`, '_blank');
+    switch (method) {
+      case 'copy': navigator.clipboard.writeText(shareUrl); toast({ title: 'Profile link copied! 📋' }); break;
+      case 'whatsapp': window.open(`https://wa.me/?text=${encodeURIComponent(shareText + '\n' + shareUrl)}`, '_blank'); break;
+      case 'twitter': window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`, '_blank'); break;
+      case 'facebook': window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`, '_blank'); break;
+    }
     setShowShareMenu(false);
   };
 
@@ -99,13 +79,16 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
   };
 
   const handleProfileSave = async (data: any) => {
-    const { error } = await updateProfile({ display_name: data.displayName, bio: data.bio, location: data.location, budget: data.budget, personality: data.personality, interests: data.interests } as any);
-    if (error) {
-      toast({ title: 'Update failed', description: error, variant: 'destructive' });
-      return;
-    }
+    await updateProfile({
+      display_name: data.displayName,
+      bio: data.bio,
+      location: data.location,
+      budget: data.budget,
+      personality: data.personality,
+      interests: data.interests,
+    } as any);
     setShowEditProfile(false);
-    toast({ title: 'Profile updated ✅' });
+    toast({ title: 'Profile updated! ✅' });
   };
 
   return (
@@ -116,19 +99,29 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
             <img src={coverUrl} alt="Cover" className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent rounded-3xl" />
           </div>
-          <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(f, 'cover'); }} />
-          <button onClick={() => coverInputRef.current?.click()} className="absolute top-4 left-4 w-10 h-10 bg-black/40 hover:bg-black/60 backdrop-blur-sm rounded-full flex items-center justify-center transition-colors" title="Change cover photo"><Camera className="w-5 h-5 text-white" /></button>
+          <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f, 'cover'); }} />
+          <button onClick={() => coverInputRef.current?.click()} className="absolute top-4 left-4 w-10 h-10 bg-black/40 hover:bg-black/60 backdrop-blur-sm rounded-full flex items-center justify-center transition-colors" title="Change cover photo">
+            <Camera className="w-5 h-5 text-white" />
+          </button>
           <div className="absolute -bottom-16 left-8 flex items-end gap-6">
             <div className="relative group">
               <img src={avatarUrl} alt={displayName} className="w-32 h-32 rounded-3xl object-cover border-4 border-background shadow-xl" />
-              <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(f, 'avatar'); }} />
-              <button onClick={() => avatarInputRef.current?.click()} className="absolute inset-0 rounded-3xl bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer" title="Change profile photo"><Camera className="w-8 h-8 text-white" /></button>
-              <div className="absolute -bottom-2 -right-2 w-10 h-10 gradient-primary rounded-full flex items-center justify-center shadow-lg"><BadgeCheck className="w-6 h-6 text-white" /></div>
+              <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f, 'avatar'); }} />
+              <button onClick={() => avatarInputRef.current?.click()} className="absolute inset-0 rounded-3xl bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer" title="Change profile photo">
+                <Camera className="w-8 h-8 text-white" />
+              </button>
+              <div className="absolute -bottom-2 -right-2 w-10 h-10 gradient-primary rounded-full flex items-center justify-center shadow-lg">
+                <BadgeCheck className="w-6 h-6 text-white" />
+              </div>
             </div>
           </div>
           <div className="absolute bottom-4 right-4 flex gap-2">
-            <Button variant="outline" size="sm" className="rounded-full bg-white/90 backdrop-blur-sm" onClick={() => setShowSettings(true)}><Settings className="w-4 h-4 mr-2" />Settings</Button>
-            <Button size="sm" className="rounded-full gradient-primary text-white" onClick={() => setShowEditProfile(true)}><Edit2 className="w-4 h-4 mr-2" />Edit Profile</Button>
+            <Button variant="outline" size="sm" className="rounded-full bg-white/90 backdrop-blur-sm" onClick={() => setShowSettings(true)}>
+              <Settings className="w-4 h-4 mr-2" />Settings
+            </Button>
+            <Button size="sm" className="rounded-full gradient-primary text-white" onClick={() => setShowEditProfile(true)}>
+              <Edit2 className="w-4 h-4 mr-2" />Edit Profile
+            </Button>
           </div>
         </div>
 
@@ -136,7 +129,9 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
           <div className="lg:col-span-2 space-y-6">
             <div>
               <h1 className="text-3xl font-bold text-foreground">{displayName}</h1>
-              <div className="flex items-center gap-2 text-muted-foreground mt-2"><MapPin className="w-4 h-4" /><span>{location}</span></div>
+              <div className="flex items-center gap-2 text-muted-foreground mt-2">
+                <MapPin className="w-4 h-4" /><span>{location}</span>
+              </div>
               <p className="text-foreground mt-4">{bio}</p>
             </div>
             <div className="grid grid-cols-3 gap-4">
@@ -151,10 +146,20 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
               <div className="travel-card p-4"><div className="flex items-center gap-2 mb-2"><Wallet className="w-5 h-5 text-primary" /><span className="text-sm text-muted-foreground">Budget</span></div><p className="font-semibold text-foreground">{budget}</p></div>
               <div className="travel-card p-4"><div className="flex items-center gap-2 mb-2"><Heart className="w-5 h-5 text-secondary" /><span className="text-sm text-muted-foreground">Personality</span></div><p className="font-semibold text-foreground">{personality}</p></div>
             </div>
-            <div className="travel-card p-6"><h4 className="font-semibold text-foreground mb-4">Interests</h4><div className="flex flex-wrap gap-2">{interests.map((interest) => { const Icon = interestIcons[interest] || Compass; return <div key={interest} className="chip chip-primary flex items-center gap-2"><Icon className="w-4 h-4" />{interest}</div>; })}</div></div>
+            <div className="travel-card p-6">
+              <h4 className="font-semibold text-foreground mb-4">Interests</h4>
+              <div className="flex flex-wrap gap-2">
+                {interests.map((interest) => {
+                  const Icon = interestIcons[interest] || Compass;
+                  return <div key={interest} className="chip chip-primary flex items-center gap-2"><Icon className="w-4 h-4" />{interest}</div>;
+                })}
+              </div>
+            </div>
             <div className="space-y-3">
               <div className="relative" ref={shareRef}>
-                <Button onClick={() => setShowShareMenu(!showShareMenu)} className="w-full h-12 gradient-primary text-primary-foreground rounded-xl font-semibold"><Share2 className="w-5 h-5 mr-2" />Share Profile</Button>
+                <Button onClick={() => setShowShareMenu(!showShareMenu)} className="w-full h-12 gradient-primary text-primary-foreground rounded-xl font-semibold">
+                  <Share2 className="w-5 h-5 mr-2" />Share Profile
+                </Button>
                 {showShareMenu && (
                   <div className="absolute bottom-full left-0 right-0 mb-2 bg-background border border-border rounded-2xl shadow-xl z-50 animate-fade-in overflow-hidden p-2">
                     <button onClick={() => handleShareProfile('whatsapp')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors"><Send className="w-4 h-4 text-green-500" />WhatsApp</button>
@@ -164,15 +169,20 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
                   </div>
                 )}
               </div>
-              <Button onClick={onOpenMessages} variant="outline" className="w-full h-12 rounded-xl font-semibold border-2 border-primary text-primary"><MessageCircle className="w-5 h-5 mr-2" />Messages</Button>
-              <Button onClick={handleLogout} variant="outline" className="w-full h-12 rounded-xl font-semibold border-destructive text-destructive hover:bg-destructive/5"><LogOut className="w-5 h-5 mr-2" />Log Out</Button>
+              <Button onClick={onOpenMessages} variant="outline" className="w-full h-12 rounded-xl font-semibold border-2 border-primary text-primary">
+                <MessageCircle className="w-5 h-5 mr-2" />Messages
+              </Button>
+              <Button onClick={handleLogout} variant="outline" className="w-full h-12 rounded-xl font-semibold border-destructive text-destructive hover:bg-destructive/5">
+                <LogOut className="w-5 h-5 mr-2" />Log Out
+              </Button>
             </div>
           </div>
         </div>
       </div>
 
       <ProfileSettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} onLogout={() => { setShowSettings(false); handleLogout(); }} />
-      <EditProfileModal isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} onSave={handleProfileSave} initialData={{ displayName, bio, location, budget, personality, interests }} />
+      <EditProfileModal isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} onSave={handleProfileSave}
+        initialData={{ displayName, bio, location, budget, personality, interests }} />
     </section>
   );
 };

@@ -5,28 +5,14 @@ import type { User, Session } from '@supabase/supabase-js';
 interface Profile {
   id: string;
   display_name: string;
-  username: string | null;
-  bio: string | null;
-  location: string | null;
-  avatar_url: string | null;
-  cover_url: string | null;
-  budget: string | null;
-  personality: string | null;
-  interests: string[];
-  phone: string | null;
-  dark_mode: boolean;
-  notifications_enabled: boolean;
-  profile_visibility: 'public' | 'connections' | 'private';
-}
-
-interface SignUpData {
-  email: string;
-  password: string;
-  displayName: string;
+  bio: string;
   location: string;
+  avatar_url: string;
+  cover_url: string;
   budget: string;
   personality: string;
   interests: string[];
+  phone: string;
 }
 
 interface AuthContextType {
@@ -34,15 +20,16 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
-  needsOnboarding: boolean;
-  signUp: (payload: SignUpData) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string, displayName: string) => Promise<{ error: string | null }>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
-  updateProfile: (data: Partial<Profile>) => Promise<{ error: string | null }>;
+  updateProfile: (data: Partial<Profile>) => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
+
+// Helper to bypass type checking for new tables not yet in generated types
 const db = supabase as any;
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -51,66 +38,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = useCallback(async (userObj: User) => {
-    const { data, error } = await db.from('profiles').select('*').eq('id', userObj.id).maybeSingle();
-
-    if (!data) {
-      const fallbackProfile = {
-        id: userObj.id,
-        display_name: (userObj.user_metadata?.display_name as string) || 'Traveler',
-        location: (userObj.user_metadata?.location as string) || null,
-        budget: (userObj.user_metadata?.budget as string) || 'Mid-Range',
-        personality: (userObj.user_metadata?.personality as string) || 'Ambivert',
-        interests: (userObj.user_metadata?.interests as string[]) || [],
-      };
-      await db.from('profiles').upsert(fallbackProfile);
-      const { data: created } = await db.from('profiles').select('*').eq('id', userObj.id).maybeSingle();
-      if (created) setProfile(created as Profile);
-      if (error) console.error(error);
-      return;
-    }
-
-    setProfile(data as Profile);
+  const fetchProfile = useCallback(async (userId: string) => {
+    const { data } = await db.from('profiles').select('*').eq('id', userId).single();
+    if (data) setProfile(data as Profile);
   }, []);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      const nextUser = nextSession?.user ?? null;
-      setUser(nextUser);
-      if (nextUser) {
-        setTimeout(() => fetchProfile(nextUser), 0);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        setTimeout(() => fetchProfile(session.user.id), 0);
       } else {
         setProfile(null);
       }
       setLoading(false);
     });
 
-    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
-      setSession(existingSession);
-      const nextUser = existingSession?.user ?? null;
-      setUser(nextUser);
-      if (nextUser) fetchProfile(nextUser);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) fetchProfile(session.user.id);
       setLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, [fetchProfile]);
 
-  const signUp = async (payload: SignUpData) => {
-    const { email, password, displayName, location, budget, personality, interests } = payload;
+  const signUp = async (email: string, password: string, displayName: string) => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         emailRedirectTo: window.location.origin,
-        data: {
-          display_name: displayName,
-          location,
-          budget,
-          personality,
-          interests,
-        },
+        data: { display_name: displayName },
       },
     });
     if (error) return { error: error.message };
@@ -129,21 +90,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const updateProfile = async (data: Partial<Profile>) => {
-    if (!user) return { error: 'Not authenticated' };
-    const { error } = await db.from('profiles').update(data).eq('id', user.id);
-    if (error) return { error: error.message };
-    await fetchProfile(user);
-    return { error: null };
+    if (!user) return;
+    await db.from('profiles').update(data).eq('id', user.id);
+    await fetchProfile(user.id);
   };
 
   const refreshProfile = async () => {
-    if (user) await fetchProfile(user);
+    if (user) await fetchProfile(user.id);
   };
 
-  const needsOnboarding = !!user && !!profile && (!profile.location || !profile.bio || profile.interests.length === 0);
-
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, needsOnboarding, signUp, signIn, signOut, updateProfile, refreshProfile }}>
+    <AuthContext.Provider value={{ user, session, profile, loading, signUp, signIn, signOut, updateProfile, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

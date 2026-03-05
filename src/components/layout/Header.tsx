@@ -1,16 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MapPin, Menu, X, Sparkles, User, LogIn, Heart, MessageSquare, Bookmark, LogOut, Bell, UserPlus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
 
 interface Notification {
   id: string;
-  type: 'follow' | 'like' | 'comment' | 'request' | 'message' | string;
-  title: string;
-  body: string | null;
-  is_read: boolean;
-  created_at: string;
+  type: 'follow' | 'like' | 'comment' | 'request';
+  message: string;
+  timestamp: string;
+  read: boolean;
 }
 
 interface HeaderProps {
@@ -22,51 +19,38 @@ interface HeaderProps {
   requestCount?: number;
 }
 
-const db = supabase as any;
-
 const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, onLogin, onLogout, requestCount = 0 }) => {
-  const { user, profile } = useAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const [notifications, setNotifications] = useState<Notification[]>([
+    { id: '1', type: 'request', message: 'Ananya Roy sent you a follow request', timestamp: '30m ago', read: false },
+    { id: '2', type: 'like', message: 'Priya Sharma liked your post about Rishikesh', timestamp: '1h ago', read: false },
+    { id: '3', type: 'comment', message: 'Arjun Patel commented on your Goa photo', timestamp: '2h ago', read: false },
+    { id: '4', type: 'follow', message: 'Sneha Kapoor started following you', timestamp: '5h ago', read: true },
+    { id: '5', type: 'like', message: 'Vikram Singh liked your post', timestamp: '1d ago', read: true },
+  ]);
 
-  useEffect(() => {
-    if (!user) return;
+  const unreadCount = notifications.filter(n => !n.read).length;
 
-    const loadNotifications = async () => {
-      const { data } = await db.from('notifications').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20);
-      if (data) setNotifications(data as Notification[]);
-    };
-
-    loadNotifications();
-
-    const channel = supabase
-      .channel(`notifications-${user.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, () => loadNotifications())
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user]);
-
+  // Close dropdowns on outside click
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
-      if (userMenuOpen && menuRef.current && !menuRef.current.contains(e.target as Node)) setUserMenuOpen(false);
-      if (notificationsOpen && notifRef.current && !notifRef.current.contains(e.target as Node)) setNotificationsOpen(false);
+      if (userMenuOpen && menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+      if (notificationsOpen && notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotificationsOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, [userMenuOpen, notificationsOpen]);
 
-  const markAllRead = async () => {
-    if (!user) return;
-    await db.from('notifications').update({ is_read: true }).eq('user_id', user.id).eq('is_read', false);
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+  const markAllRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 
   const navItems = [
@@ -86,10 +70,13 @@ const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, 
   ];
 
   const getNotificationIcon = (type: string) => {
-    if (type === 'follow' || type === 'request') return <UserPlus className="w-4 h-4 text-primary" />;
-    if (type === 'like') return <Heart className="w-4 h-4 text-destructive" />;
-    if (type === 'comment') return <MessageSquare className="w-4 h-4 text-blue-500" />;
-    return <Bell className="w-4 h-4 text-primary" />;
+    switch (type) {
+      case 'follow': return <UserPlus className="w-4 h-4 text-primary" />;
+      case 'like': return <Heart className="w-4 h-4 text-destructive" />;
+      case 'comment': return <MessageSquare className="w-4 h-4 text-blue-500" />;
+      case 'request': return <UserPlus className="w-4 h-4 text-orange-500" />;
+      default: return <Bell className="w-4 h-4 text-primary" />;
+    }
   };
 
   return (
@@ -106,7 +93,11 @@ const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, 
           {isLoggedIn && (
             <nav className="hidden lg:flex items-center gap-1 flex-1 justify-center mx-4">
               {navItems.map((item) => (
-                <button key={item.id} onClick={() => onNavigate(item.id)} className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${activeSection === item.id ? 'gradient-primary text-primary-foreground shadow-md' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}>
+                <button key={item.id} onClick={() => onNavigate(item.id)}
+                  className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
+                    activeSection === item.id ? 'gradient-primary text-primary-foreground shadow-md' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  }`}
+                >
                   {item.id === 'search' && <Search className="w-4 h-4 inline mr-1" />}
                   {item.label}
                 </button>
@@ -115,9 +106,9 @@ const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, 
           )}
 
           <div className="flex items-center gap-2 flex-shrink-0">
-            {isLoggedIn ? (
+            {isLoggedIn && (
               <>
-                <Button onClick={() => onNavigate('ai')} className="flex items-center gap-2 gradient-primary text-primary-foreground rounded-xl shadow-glow" size="sm">
+                <Button onClick={() => onNavigate('ai')} className="flex items-center gap-2 gradient-primary text-primary-foreground rounded-xl shadow-glow hover:shadow-lg transition-shadow" size="sm">
                   <Sparkles className="w-4 h-4" />
                   <span className="hidden md:inline">Ask AI</span>
                 </Button>
@@ -125,26 +116,28 @@ const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, 
                 <div className="relative" ref={notifRef}>
                   <button onClick={() => { setNotificationsOpen(!notificationsOpen); setUserMenuOpen(false); }} className="relative p-2 rounded-xl hover:bg-muted transition-colors">
                     <Bell className="w-5 h-5 text-foreground" />
-                    {unreadCount > 0 && <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-destructive text-white text-[10px] font-bold rounded-full flex items-center justify-center">{unreadCount}</span>}
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-destructive text-white text-[10px] font-bold rounded-full flex items-center justify-center">{unreadCount}</span>
+                    )}
                   </button>
 
                   {notificationsOpen && (
                     <div className="absolute top-full right-0 mt-2 w-80 bg-background/95 backdrop-blur-xl border border-border rounded-2xl shadow-xl animate-fade-in overflow-hidden z-50">
                       <div className="px-4 py-3 flex items-center justify-between border-b border-border">
                         <h3 className="font-semibold text-foreground text-sm">Notifications</h3>
-                        {unreadCount > 0 && <button onClick={markAllRead} className="text-xs text-primary font-medium hover:underline">Mark all read</button>}
+                        {unreadCount > 0 && (
+                          <button onClick={markAllRead} className="text-xs text-primary font-medium hover:underline">Mark all read</button>
+                        )}
                       </div>
                       <div className="max-h-80 overflow-y-auto">
-                        {notifications.length === 0 ? (
-                          <p className="p-4 text-sm text-muted-foreground">No notifications yet.</p>
-                        ) : notifications.map((notif) => (
-                          <div key={notif.id} className={`px-4 py-3 flex items-start gap-3 ${!notif.is_read ? 'bg-primary/5' : ''}`}>
+                        {notifications.map((notif) => (
+                          <div key={notif.id} className={`px-4 py-3 flex items-start gap-3 hover:bg-muted/50 transition-colors ${!notif.read ? 'bg-primary/5' : ''}`}>
                             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">{getNotificationIcon(notif.type)}</div>
                             <div className="flex-1 min-w-0">
-                              <p className={`text-sm ${!notif.is_read ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>{notif.title}</p>
-                              {notif.body && <p className="text-xs text-muted-foreground mt-0.5">{notif.body}</p>}
-                              <p className="text-[10px] text-muted-foreground mt-1">{new Date(notif.created_at).toLocaleString()}</p>
+                              <p className={`text-sm ${!notif.read ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>{notif.message}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">{notif.timestamp}</p>
                             </div>
+                            {!notif.read && <span className="w-2 h-2 bg-primary rounded-full flex-shrink-0 mt-2" />}
                           </div>
                         ))}
                       </div>
@@ -166,34 +159,42 @@ const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, 
                     <div className="absolute top-full right-0 mt-2 w-64 bg-background/95 backdrop-blur-xl border border-border rounded-2xl shadow-xl animate-fade-in overflow-hidden z-50">
                       <div className="p-4 border-b border-border">
                         <div className="flex items-center gap-3">
-                          <img src={profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=50&h=50&fit=crop&crop=face'} alt="You" className="w-10 h-10 rounded-full object-cover" />
+                          <img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=50&h=50&fit=crop&crop=face" alt="You" className="w-10 h-10 rounded-full object-cover" />
                           <div>
-                            <p className="font-semibold text-foreground text-sm">{profile?.display_name || 'Traveler'}</p>
-                            <p className="text-xs text-muted-foreground">{profile?.location || 'Unknown location'}</p>
+                            <p className="font-semibold text-foreground text-sm">Traveler</p>
+                            <p className="text-xs text-muted-foreground">Mumbai, India</p>
                           </div>
                         </div>
                       </div>
 
                       <div className="lg:hidden p-2 border-b border-border">
                         {navItems.map((item) => (
-                          <button key={item.id} onClick={() => { onNavigate(item.id); setUserMenuOpen(false); }} className={`w-full px-4 py-2.5 rounded-xl text-left text-sm font-medium transition-all ${activeSection === item.id ? 'gradient-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}>
-                            {item.label}
-                          </button>
+                          <button key={item.id} onClick={() => { onNavigate(item.id); setUserMenuOpen(false); }}
+                            className={`w-full px-4 py-2.5 rounded-xl text-left text-sm font-medium transition-all ${
+                              activeSection === item.id ? 'gradient-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
+                            }`}
+                          >{item.label}</button>
                         ))}
                       </div>
 
                       <div className="p-2">
                         {userMenuItems.map(({ icon: Icon, label, id, badge }) => (
-                          <button key={id} onClick={() => { onNavigate(id); setUserMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-foreground hover:bg-muted transition-colors">
+                          <button key={id} onClick={() => { onNavigate(id); setUserMenuOpen(false); }}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-foreground hover:bg-muted transition-colors"
+                          >
                             <Icon className="w-4 h-4 text-primary" />
                             <span className="flex-1 text-left">{label}</span>
-                            {badge && badge > 0 && <span className="w-5 h-5 bg-destructive text-white text-[10px] font-bold rounded-full flex items-center justify-center">{badge}</span>}
+                            {badge && badge > 0 && (
+                              <span className="w-5 h-5 bg-destructive text-white text-[10px] font-bold rounded-full flex items-center justify-center">{badge}</span>
+                            )}
                           </button>
                         ))}
                       </div>
 
                       <div className="p-2 border-t border-border">
-                        <button onClick={() => { onLogout?.(); setUserMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-destructive hover:bg-destructive/5 transition-colors">
+                        <button onClick={() => { onLogout?.(); setUserMenuOpen(false); }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-destructive hover:bg-destructive/5 transition-colors"
+                        >
                           <LogOut className="w-4 h-4" />Log Out
                         </button>
                       </div>
@@ -201,7 +202,9 @@ const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, 
                   )}
                 </div>
               </>
-            ) : (
+            )}
+
+            {!isLoggedIn && (
               <Button onClick={onLogin} className="flex items-center gap-2 gradient-primary text-primary-foreground rounded-xl shadow-glow">
                 <LogIn className="w-4 h-4" /><span>Login</span>
               </Button>
