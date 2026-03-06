@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import FloatingMessagesButton from '@/components/layout/FloatingMessagesButton';
@@ -15,76 +15,80 @@ import SearchSection from '@/components/sections/SearchSection';
 import AIChatModal from '@/components/sections/AIChatModal';
 import LoginModal from '@/components/modals/LoginModal';
 import TripCreateScreen from '@/components/screens/TripCreateScreen';
-import { Heart, MessageSquare, Bookmark, UserPlus } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
-
-interface UserActivity {
-  likedPosts: { postId: string; userName: string; caption: string; image: string }[];
-  commentedPosts: { postId: string; userName: string; comment: string }[];
-  savedPosts: { postId: string; userName: string; caption: string; image: string }[];
-}
+import { toast } from '@/hooks/use-toast';
 
 const Index: React.FC = () => {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, profile, signOut, updateProfile } = useAuth();
   const isLoggedIn = !!user;
 
   const [activeSection, setActiveSection] = useState(isLoggedIn ? 'home' : 'landing');
   const [showAIChat, setShowAIChat] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showMessagesPanel, setShowMessagesPanel] = useState(false);
-  const [requestCount] = useState(3);
-  const [followedUsers, setFollowedUsers] = useState<Set<string>>(new Set());
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
-  const [userActivity, setUserActivity] = useState<UserActivity>({
-    likedPosts: [], commentedPosts: [], savedPosts: [],
+  const [onboarding, setOnboarding] = useState({
+    display_name: '',
+    location: '',
+    bio: '',
+    budget: 'Mid-Range',
+    personality: 'Ambivert',
+    interests: '',
   });
 
-  const postData: Record<string, { userName: string; caption: string; image: string }> = {
-    '1': { userName: 'Arjun Patel', caption: 'Found peace by the Ganges 🙏', image: 'https://images.unsplash.com/photo-1545158535-c3f7168c28b6?w=300&h=200&fit=crop' },
-    '2': { userName: 'Priya Sharma', caption: 'Conquered Khardung La at 18,380 ft! 🏔️', image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=300&h=200&fit=crop' },
-    '3': { userName: 'Sneha Kapoor', caption: 'Walking through history at Hampi', image: 'https://images.unsplash.com/photo-1590766940554-634a7c9a2fe4?w=300&h=200&fit=crop' },
-    '4': { userName: 'Vikram Singh', caption: 'Sunset sessions at Arambol beach 🌅', image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=300&h=200&fit=crop' },
-  };
+  useEffect(() => {
+    if (!loading) {
+      if (isLoggedIn && activeSection === 'landing') setActiveSection('home');
+      if (!isLoggedIn && activeSection !== 'landing') setActiveSection('landing');
+    }
+  }, [isLoggedIn, loading, activeSection]);
 
-  const handleLikePost = useCallback((postId: string, liked: boolean) => {
-    setUserActivity(prev => liked
-      ? { ...prev, likedPosts: [...prev.likedPosts, { postId, ...(postData[postId] || { userName: 'Unknown', caption: '', image: '' }) }] }
-      : { ...prev, likedPosts: prev.likedPosts.filter(p => p.postId !== postId) }
-    );
-  }, []);
+  useEffect(() => {
+    if (!profile || !user) return;
 
-  const handleCommentPost = useCallback((postId: string, comment: string) => {
-    const userName = postData[postId]?.userName || 'Unknown';
-    setUserActivity(prev => ({ ...prev, commentedPosts: [...prev.commentedPosts, { postId, userName, comment }] }));
-  }, []);
+    const needsOnboarding = !profile.location || !profile.bio || !profile.display_name;
+    setShowOnboarding(needsOnboarding);
 
-  const handleSavePost = useCallback((postId: string, saved: boolean) => {
-    setUserActivity(prev => saved
-      ? { ...prev, savedPosts: [...prev.savedPosts, { postId, ...(postData[postId] || { userName: 'Unknown', caption: '', image: '' }) }] }
-      : { ...prev, savedPosts: prev.savedPosts.filter(p => p.postId !== postId) }
-    );
-  }, []);
-
-  const handleFollow = useCallback((userId: string, userName: string) => {
-    setFollowedUsers(prev => {
-      const next = new Set(prev);
-      if (next.has(userId)) { next.delete(userId); toast({ title: `Unfollowed ${userName}` }); }
-      else { next.add(userId); toast({ title: `Following ${userName}! 🎉` }); }
-      return next;
-    });
-  }, []);
+    if (needsOnboarding) {
+      setOnboarding({
+        display_name: profile.display_name || '',
+        location: profile.location || '',
+        bio: profile.bio || '',
+        budget: profile.budget || 'Mid-Range',
+        personality: profile.personality || 'Ambivert',
+        interests: profile.interests?.join(', ') || '',
+      });
+    }
+  }, [profile, user]);
 
   const handleNavigate = (section: string) => {
-    if (section === 'ai') { setShowAIChat(true); return; }
-    if (section === 'login') { setShowLoginModal(true); return; }
+    if (section === 'ai') {
+      setShowAIChat(true);
+      return;
+    }
+    if (section === 'login') {
+      setShowLoginModal(true);
+      return;
+    }
     setActiveSection(section);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleLogin = () => setShowLoginModal(true);
-  const handleLoginComplete = () => { setShowLoginModal(false); setActiveSection('home'); };
-  const handleGetStarted = () => { if (isLoggedIn) handleNavigate('home'); else setShowLoginModal(true); };
+
+  const handleLoginComplete = () => {
+    setShowLoginModal(false);
+    setActiveSection('home');
+  };
+
+  const handleGetStarted = () => {
+    if (isLoggedIn) handleNavigate('home');
+    else setShowLoginModal(true);
+  };
+
   const handleLogout = async () => {
     await signOut();
     setActiveSection('landing');
@@ -92,56 +96,33 @@ const Index: React.FC = () => {
     toast({ title: 'Logged out successfully 👋' });
   };
 
-  // Sync activeSection with auth state
-  React.useEffect(() => {
-    if (!loading) {
-      if (isLoggedIn && activeSection === 'landing') setActiveSection('home');
-      if (!isLoggedIn && activeSection !== 'landing') setActiveSection('landing');
+  const handleFinishOnboarding = async () => {
+    if (!onboarding.display_name.trim() || !onboarding.location.trim() || !onboarding.bio.trim()) {
+      toast({ title: 'Please fill all required profile details', variant: 'destructive' });
+      return;
     }
-  }, [isLoggedIn, loading]);
 
-  const renderActivityPage = (type: 'liked' | 'comments' | 'saved' | 'requests') => {
-    const icons = { liked: Heart, comments: MessageSquare, saved: Bookmark, requests: UserPlus };
-    const titles = { liked: 'Liked Posts', comments: 'My Comments', saved: 'Saved Posts', requests: 'Requests' };
-    const Icon = icons[type];
-    let items: { label: string; sub: string; image?: string }[] = [];
-    if (type === 'liked') items = userActivity.likedPosts.map(p => ({ label: p.userName, sub: p.caption, image: p.image }));
-    if (type === 'comments') items = userActivity.commentedPosts.map(p => ({ label: `On ${p.userName}'s post`, sub: `"${p.comment}"` }));
-    if (type === 'saved') items = userActivity.savedPosts.map(p => ({ label: p.userName, sub: p.caption, image: p.image }));
+    const interests = onboarding.interests
+      .split(',')
+      .map((i) => i.trim())
+      .filter(Boolean);
 
-    return (
-      <div className="pt-20">
-        <section className="py-20 bg-background">
-          <div className="max-w-3xl mx-auto px-4">
-            <div className="flex items-center gap-3 mb-8">
-              <div className="w-12 h-12 gradient-primary rounded-xl flex items-center justify-center"><Icon className="w-6 h-6 text-white" /></div>
-              <h1 className="text-2xl font-bold text-foreground">{titles[type]}</h1>
-            </div>
-            {type === 'requests' ? (
-              <div className="text-center py-12">
-                <p className="text-muted-foreground mb-4">Open the Messages panel to view and manage your trip requests.</p>
-                <button onClick={() => setShowMessagesPanel(true)} className="px-6 py-3 gradient-primary text-white rounded-xl font-medium">Open Messages</button>
-              </div>
-            ) : items.length === 0 ? (
-              <div className="text-center py-16">
-                <div className="w-20 h-20 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center"><Icon className="w-10 h-10 text-muted-foreground" /></div>
-                <p className="text-lg font-medium text-foreground mb-2">Nothing here yet</p>
-                <p className="text-muted-foreground">{type === 'liked' && 'Posts you like will appear here'}{type === 'comments' && 'Your comments will appear here'}{type === 'saved' && 'Posts you save will appear here'}</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {items.map((item, i) => (
-                  <div key={i} className="travel-card p-4 flex items-center gap-4">
-                    {item.image ? <img src={item.image} alt="" className="w-16 h-12 rounded-xl object-cover" /> : <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center"><Icon className="w-5 h-5 text-primary" /></div>}
-                    <div className="flex-1 min-w-0"><p className="font-medium text-foreground text-sm">{item.label}</p><p className="text-xs text-muted-foreground truncate">{item.sub}</p></div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-      </div>
-    );
+    const { error } = await updateProfile({
+      display_name: onboarding.display_name,
+      location: onboarding.location,
+      bio: onboarding.bio,
+      budget: onboarding.budget,
+      personality: onboarding.personality,
+      interests,
+    } as any);
+
+    if (error) {
+      toast({ title: 'Failed to save profile', description: error, variant: 'destructive' });
+      return;
+    }
+
+    toast({ title: 'Profile setup complete ✅' });
+    setShowOnboarding(false);
   };
 
   const renderContent = () => {
@@ -156,7 +137,7 @@ const Index: React.FC = () => {
           </>
         );
       case 'home':
-        return <div className="pt-20"><FeedSection onLikePost={handleLikePost} onCommentPost={handleCommentPost} onSavePost={handleSavePost} followedUsers={followedUsers} onFollow={handleFollow} /></div>;
+        return <div className="pt-20"><FeedSection /></div>;
       case 'explore':
         return <div className="pt-20"><TravelersSection /></div>;
       case 'itinerary':
@@ -164,15 +145,11 @@ const Index: React.FC = () => {
       case 'expenses':
         return <div className="pt-20"><ExpenseSection /></div>;
       case 'search':
-        return <div className="pt-20"><SearchSection followedUsers={followedUsers} onFollow={handleFollow} /></div>;
+        return <div className="pt-20"><SearchSection /></div>;
       case 'profile':
-        return <div className="pt-20"><ProfileSection onLogout={handleLogout} onOpenMessages={() => setShowMessagesPanel(true)} followerCount={followedUsers.size} followingCount={followedUsers.size} /></div>;
+        return <div className="pt-20"><ProfileSection onLogout={handleLogout} onOpenMessages={() => setShowMessagesPanel(true)} /></div>;
       case 'create-trip':
         return <div className="pt-20"><TripCreateScreen onBack={() => handleNavigate('home')} /></div>;
-      case 'liked': return renderActivityPage('liked');
-      case 'comments': return renderActivityPage('comments');
-      case 'saved': return renderActivityPage('saved');
-      case 'requests': return renderActivityPage('requests');
       default:
         return (
           <>
@@ -184,22 +161,60 @@ const Index: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-background"><div className="w-12 h-12 gradient-primary rounded-2xl flex items-center justify-center animate-pulse"><span className="text-white font-bold text-lg">T</span></div></div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-12 h-12 gradient-primary rounded-2xl flex items-center justify-center animate-pulse">
+          <span className="text-white font-bold text-lg">T</span>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen bg-background">
-      <Header activeSection={activeSection} onNavigate={handleNavigate} isLoggedIn={isLoggedIn} onLogin={handleLogin} onLogout={handleLogout} requestCount={requestCount} />
+      <Header activeSection={activeSection} onNavigate={handleNavigate} isLoggedIn={isLoggedIn} onLogin={handleLogin} onLogout={handleLogout} />
       <main>{renderContent()}</main>
       <Footer />
+
       {isLoggedIn && (
         <>
-          <FloatingMessagesButton onClick={() => setShowMessagesPanel(!showMessagesPanel)} isOpen={showMessagesPanel} unreadCount={2} />
+          <FloatingMessagesButton onClick={() => setShowMessagesPanel(!showMessagesPanel)} isOpen={showMessagesPanel} unreadCount={0} />
           <MessagesPanel isOpen={showMessagesPanel} onClose={() => setShowMessagesPanel(false)} />
         </>
       )}
+
       <AIChatModal isOpen={showAIChat} onClose={() => setShowAIChat(false)} />
       <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} onComplete={handleLoginComplete} />
+
+      {showOnboarding && isLoggedIn && (
+        <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-xl bg-background rounded-3xl p-6 shadow-2xl space-y-4">
+            <h2 className="text-xl font-bold text-foreground">Complete your profile</h2>
+            <p className="text-sm text-muted-foreground">Set your personal details to start using all TripSync features.</p>
+
+            <div className="grid grid-cols-1 gap-3">
+              <Input placeholder="Display name" value={onboarding.display_name} onChange={(e) => setOnboarding((p) => ({ ...p, display_name: e.target.value }))} />
+              <Input placeholder="Location" value={onboarding.location} onChange={(e) => setOnboarding((p) => ({ ...p, location: e.target.value }))} />
+              <Input placeholder="Short bio" value={onboarding.bio} onChange={(e) => setOnboarding((p) => ({ ...p, bio: e.target.value }))} />
+              <Input placeholder="Interests (comma separated)" value={onboarding.interests} onChange={(e) => setOnboarding((p) => ({ ...p, interests: e.target.value }))} />
+              <div className="grid grid-cols-2 gap-3">
+                <select className="input-field" value={onboarding.budget} onChange={(e) => setOnboarding((p) => ({ ...p, budget: e.target.value }))}>
+                  <option>Budget</option>
+                  <option>Mid-Range</option>
+                  <option>Luxury</option>
+                </select>
+                <select className="input-field" value={onboarding.personality} onChange={(e) => setOnboarding((p) => ({ ...p, personality: e.target.value }))}>
+                  <option>Introvert</option>
+                  <option>Ambivert</option>
+                  <option>Extrovert</option>
+                </select>
+              </div>
+            </div>
+
+            <Button className="w-full h-11 gradient-primary text-primary-foreground" onClick={handleFinishOnboarding}>Save profile</Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
