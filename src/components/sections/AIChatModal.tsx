@@ -6,8 +6,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import ReactMarkdown from 'react-markdown';
 
-const db = supabase as any;
-
 interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -41,13 +39,13 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
 
   const loadConversations = useCallback(async () => {
     if (!user) return;
-    const { data } = await db.from('chat_conversations').select('*').eq('user_id', user.id).order('updated_at', { ascending: false });
+    const { data } = await supabase.from('chat_conversations').select('id,title,updated_at').eq('user_id', user.id).order('updated_at', { ascending: false });
     if (data) setConversations(data as Conversation[]);
   }, [user]);
 
   const loadMessages = useCallback(async (convoId: string) => {
-    const { data } = await db.from('chat_messages').select('*').eq('conversation_id', convoId).order('created_at', { ascending: true });
-    if (data) setMessages((data as any[]).map(m => ({ id: m.id, role: m.role, content: m.content })));
+    const { data } = await supabase.from('chat_messages').select('id,role,content').eq('conversation_id', convoId).order('created_at', { ascending: true });
+    if (data) setMessages((data as any[]).map((m) => ({ id: m.id, role: m.role, content: m.content })));
   }, []);
 
   useEffect(() => {
@@ -56,7 +54,7 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
 
   const startNewChat = async () => {
     if (!user) return;
-    const { data } = await db.from('chat_conversations').insert({ user_id: user.id, title: 'New Chat' }).select().single();
+    const { data } = await supabase.from('chat_conversations').insert({ user_id: user.id, title: 'New Chat' }).select().single();
     if (data) {
       setActiveConvoId((data as any).id);
       setMessages([]);
@@ -72,58 +70,58 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
   };
 
   const deleteConversation = async (convoId: string) => {
-    await db.from('chat_conversations').delete().eq('id', convoId);
-    if (activeConvoId === convoId) { setActiveConvoId(null); setMessages([]); }
+    await supabase.from('chat_conversations').delete().eq('id', convoId);
+    if (activeConvoId === convoId) {
+      setActiveConvoId(null);
+      setMessages([]);
+    }
     await loadConversations();
   };
 
-  const handleSend = async () => {
-    if (!inputValue.trim() || isLoading || !user) return;
+  const handleSend = async (forcedText?: string) => {
+    const text = (forcedText ?? inputValue).trim();
+    if (!text || isLoading || !user) return;
 
     let convoId = activeConvoId;
     if (!convoId) {
-      const { data } = await db.from('chat_conversations').insert({ user_id: user.id, title: inputValue.slice(0, 50) }).select().single();
-      if (data) { convoId = (data as any).id; setActiveConvoId(convoId); }
-      else return;
+      const { data } = await supabase.from('chat_conversations').insert({ user_id: user.id, title: text.slice(0, 50) }).select().single();
+      if (!data) return;
+      convoId = (data as any).id;
+      setActiveConvoId(convoId);
     }
 
-    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: inputValue };
+    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text };
     const loadingMsg: Message = { id: 'loading', role: 'assistant', content: '', isLoading: true };
-    setMessages(prev => [...prev, userMsg, loadingMsg]);
-    const userInput = inputValue;
+
+    setMessages((prev) => [...prev, userMsg, loadingMsg]);
     setInputValue('');
     setIsLoading(true);
 
-    await db.from('chat_messages').insert({ conversation_id: convoId, role: 'user', content: userInput });
-
-    const historyMessages = [...messages, userMsg].slice(-20).map(m => ({ role: m.role, content: m.content }));
+    await supabase.from('chat_messages').insert({ conversation_id: convoId, role: 'user', content: text });
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-travel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
-        body: JSON.stringify({ type: 'chat', destination: userInput, history: historyMessages }),
+      const history = [...messages, userMsg]
+        .filter((m) => !m.isLoading)
+        .slice(-12)
+        .map((m) => ({ role: m.role, content: m.content }));
+
+      const { data, error } = await supabase.functions.invoke('ai-travel', {
+        body: { type: 'chat', destination: text, history },
       });
 
-      if (!response.ok) { const err = await response.json(); throw new Error(err.error || 'Failed'); }
+      if (error) throw error;
 
-      const result = await response.json();
-      const aiContent = result.content || "I'm here to help!";
+      const aiContent = data?.content || "I'm here to help!";
 
-      await db.from('chat_messages').insert({ conversation_id: convoId, role: 'assistant', content: aiContent });
+      await supabase.from('chat_messages').insert({ conversation_id: convoId, role: 'assistant', content: aiContent });
+      await supabase.from('chat_conversations').update({ title: messages.length === 0 ? text.slice(0, 50) : undefined }).eq('id', convoId);
 
-      if (messages.length === 0) {
-        await db.from('chat_conversations').update({ title: userInput.slice(0, 50), updated_at: new Date().toISOString() }).eq('id', convoId);
-      } else {
-        await db.from('chat_conversations').update({ updated_at: new Date().toISOString() }).eq('id', convoId);
-      }
-      loadConversations();
-
-      setMessages(prev => prev.filter(m => !m.isLoading).concat({ id: (Date.now() + 1).toString(), role: 'assistant', content: aiContent }));
+      await loadConversations();
+      setMessages((prev) => prev.filter((m) => !m.isLoading).concat({ id: `${Date.now()}-ai`, role: 'assistant', content: aiContent }));
     } catch (error) {
-      setMessages(prev => prev.filter(m => !m.isLoading));
+      setMessages((prev) => prev.filter((m) => !m.isLoading));
       toast({ title: 'AI Response Failed', description: error instanceof Error ? error.message : 'Try again.', variant: 'destructive' });
-      setMessages(prev => [...prev, { id: (Date.now() + 2).toString(), role: 'assistant', content: "Sorry, having trouble. Please try again." }]);
+      setMessages((prev) => [...prev, { id: `${Date.now()}-error`, role: 'assistant', content: 'Sorry, please try again.' }]);
     } finally {
       setIsLoading(false);
     }
@@ -131,15 +129,14 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
 
   const handleQuickAction = (label: string) => {
     setInputValue(label);
-    setTimeout(() => handleSend(), 100);
+    handleSend(label);
   };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={onClose}>
-      <div className="w-full max-w-3xl h-[85vh] bg-background rounded-3xl shadow-2xl flex overflow-hidden" onClick={e => e.stopPropagation()}>
-
+      <div className="w-full max-w-3xl h-[85vh] bg-background rounded-3xl shadow-2xl flex overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {showSidebar && (
           <div className="w-72 border-r border-border flex flex-col bg-muted/30">
             <div className="p-4 border-b border-border flex items-center justify-between">
@@ -149,7 +146,7 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
             <div className="flex-1 overflow-y-auto">
               {conversations.length === 0 ? (
                 <div className="p-4 text-center text-sm text-muted-foreground">No chats yet</div>
-              ) : conversations.map(c => (
+              ) : conversations.map((c) => (
                 <div key={c.id} className={`px-4 py-3 flex items-center gap-2 cursor-pointer hover:bg-muted/50 transition-colors ${activeConvoId === c.id ? 'bg-primary/10' : ''}`}>
                   <button onClick={() => selectConversation(c.id)} className="flex-1 text-left">
                     <p className="text-sm font-medium text-foreground truncate">{c.title}</p>
@@ -168,7 +165,7 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
             <div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center shadow-glow"><Sparkles className="w-5 h-5 text-white" /></div>
             <div className="flex-1">
               <h2 className="text-lg font-semibold text-foreground">TripSync AI</h2>
-              <p className="text-sm text-success flex items-center gap-1"><span className="w-2 h-2 bg-success rounded-full" />Always online</p>
+              <p className="text-sm text-success flex items-center gap-1"><span className="w-2 h-2 bg-success rounded-full" />Fast mode enabled</p>
             </div>
             <button onClick={startNewChat} className="p-2 rounded-lg hover:bg-muted transition-colors"><Plus className="w-5 h-5" /></button>
             <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors"><X className="w-5 h-5" /></button>
@@ -177,8 +174,7 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
           <div className="px-6 py-3 bg-muted/30 border-b border-border">
             <div className="flex gap-2 overflow-x-auto scrollbar-hide">
               {[{ icon: Calendar, label: 'Plan Trip' }, { icon: Users, label: 'Find Mates' }, { icon: MapPin, label: 'Nearby' }, { icon: Wallet, label: 'Expenses' }, { icon: AlertTriangle, label: 'SOS' }].map(({ icon: Icon, label }) => (
-                <button key={label} onClick={() => handleQuickAction(label)} disabled={isLoading}
-                  className="flex items-center gap-2 px-4 py-2 bg-card rounded-full text-sm font-medium whitespace-nowrap shadow-sm hover:shadow-md transition-all hover:bg-primary/5 disabled:opacity-50">
+                <button key={label} onClick={() => handleQuickAction(label)} disabled={isLoading} className="flex items-center gap-2 px-4 py-2 bg-card rounded-full text-sm font-medium whitespace-nowrap shadow-sm hover:shadow-md transition-all hover:bg-primary/5 disabled:opacity-50">
                   <Icon className="w-4 h-4 text-primary" />{label}
                 </button>
               ))}
@@ -189,11 +185,11 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
             {messages.length === 0 && (
               <div className="text-center py-12">
                 <div className="w-16 h-16 gradient-primary rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-glow"><Sparkles className="w-8 h-8 text-white" /></div>
-                <h3 className="text-lg font-semibold text-foreground mb-2">Welcome to TripSync AI!</h3>
-                <p className="text-muted-foreground text-sm max-w-md mx-auto">I remember our conversations! Ask me about travel planning, find buddies, split expenses, or anything travel-related.</p>
+                <h3 className="text-lg font-semibold text-foreground mb-2">Welcome to TripSync AI</h3>
+                <p className="text-muted-foreground text-sm max-w-md mx-auto">Ask anything — I keep your chat history and context.</p>
               </div>
             )}
-            {messages.map(message => (
+            {messages.map((message) => (
               <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
                 <div className={`max-w-[80%] rounded-2xl px-5 py-4 ${message.role === 'user' ? 'gradient-primary text-primary-foreground rounded-br-md' : 'bg-card shadow-md rounded-bl-md border border-border'}`}>
                   {message.role === 'assistant' && (
@@ -218,10 +214,9 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
           <div className="p-6 bg-card border-t border-border">
             <div className="flex items-center gap-3">
               <div className="flex-1">
-                <input type="text" value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()}
-                  placeholder="Ask TripSync AI anything..." className="input-field h-12" disabled={isLoading} />
+                <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} placeholder="Ask TripSync AI anything..." className="input-field h-12" disabled={isLoading} />
               </div>
-              <Button onClick={handleSend} disabled={!inputValue.trim() || isLoading} className="w-12 h-12 p-0 rounded-full gradient-primary shadow-glow">
+              <Button onClick={() => handleSend()} disabled={!inputValue.trim() || isLoading} className="w-12 h-12 p-0 rounded-full gradient-primary shadow-glow">
                 {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
               </Button>
             </div>
