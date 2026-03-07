@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { X, MapPin, Mail, Lock, User, ArrowRight, Loader2, Chrome, Apple } from 'lucide-react';
+import { X, MapPin, Mail, Lock, User, ArrowRight, Loader2, Chrome, Apple, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -12,49 +13,49 @@ interface LoginModalProps {
 
 const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onComplete }) => {
   const { signIn, signUp, signInWithProvider } = useAuth();
-  const [step, setStep] = useState<'login' | 'signup'>('login');
+  const [step, setStep] = useState<'login' | 'signup' | 'forgot'>('login');
   const [loading, setLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(null);
   const [formData, setFormData] = useState({ email: '', password: '', name: '' });
+  const [showPassword, setShowPassword] = useState(false);
 
-  const title = useMemo(() => (step === 'login' ? 'Welcome Back!' : 'Create Account'), [step]);
+  const title = useMemo(() => {
+    if (step === 'login') return 'Welcome Back!';
+    if (step === 'signup') return 'Create Account';
+    return 'Reset Password';
+  }, [step]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     const { error } = await signIn(formData.email, formData.password);
     setLoading(false);
-
-    if (error) {
-      toast({ title: 'Login failed', description: error, variant: 'destructive' });
-      return;
-    }
-
+    if (error) { toast({ title: 'Login failed', description: error, variant: 'destructive' }); return; }
     toast({ title: 'Welcome back! 👋' });
     onComplete();
   };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (formData.password.length < 6) {
-      toast({ title: 'Password too short', description: 'Must be at least 6 characters.', variant: 'destructive' });
-      return;
-    }
-
+    if (formData.password.length < 6) { toast({ title: 'Password too short', description: 'Must be at least 6 characters.', variant: 'destructive' }); return; }
     setLoading(true);
     const { error } = await signUp(formData.email, formData.password, formData.name);
     setLoading(false);
+    if (error) { toast({ title: 'Signup failed', description: error, variant: 'destructive' }); return; }
+    toast({ title: 'Check your email! 📧', description: 'Verification email sent. Please verify and then sign in.' });
+    setStep('login');
+  };
 
-    if (error) {
-      toast({ title: 'Signup failed', description: error, variant: 'destructive' });
-      return;
-    }
-
-    toast({
-      title: 'Check your email! 📧',
-      description: 'Verification email sent. Please verify and then sign in.',
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.email) { toast({ title: 'Enter your email', variant: 'destructive' }); return; }
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(formData.email, {
+      redirectTo: `${window.location.origin}/reset-password`,
     });
+    setLoading(false);
+    if (error) { toast({ title: 'Failed', description: error.message, variant: 'destructive' }); return; }
+    toast({ title: 'Reset email sent! 📧', description: 'Check your inbox for a password reset link.' });
     setStep('login');
   };
 
@@ -62,12 +63,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onComplete }) 
     setSocialLoading(provider);
     const { error } = await signInWithProvider(provider);
     setSocialLoading(null);
-
-    if (error) {
-      toast({ title: 'Social login failed', description: error, variant: 'destructive' });
-      return;
-    }
-
+    if (error) { toast({ title: 'Social login failed', description: error, variant: 'destructive' }); return; }
     onComplete();
   };
 
@@ -92,36 +88,29 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onComplete }) 
         <div className="p-6">
           <div className="text-center mb-6">
             <h2 className="text-xl font-bold text-foreground">{title}</h2>
-            <p className="text-muted-foreground text-sm mt-1">{step === 'login' ? 'Sign in to continue your journey' : 'Join our community of travelers'}</p>
+            <p className="text-muted-foreground text-sm mt-1">
+              {step === 'login' ? 'Sign in to continue your journey' : step === 'signup' ? 'Join our community of travelers' : 'We\'ll send you a reset link'}
+            </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => handleSocial('google')}
-              disabled={!!socialLoading}
-              className="h-11 rounded-xl"
-            >
-              {socialLoading === 'google' ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Chrome className="w-4 h-4 mr-2" />Google</>}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => handleSocial('apple')}
-              disabled={!!socialLoading}
-              className="h-11 rounded-xl"
-            >
-              {socialLoading === 'apple' ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Apple className="w-4 h-4 mr-2" />Apple</>}
-            </Button>
-          </div>
+          {step !== 'forgot' && (
+            <>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <Button type="button" variant="outline" onClick={() => handleSocial('google')} disabled={!!socialLoading} className="h-11 rounded-xl">
+                  {socialLoading === 'google' ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Chrome className="w-4 h-4 mr-2" />Google</>}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => handleSocial('apple')} disabled={!!socialLoading} className="h-11 rounded-xl">
+                  {socialLoading === 'apple' ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Apple className="w-4 h-4 mr-2" />Apple</>}
+                </Button>
+              </div>
+              <div className="relative my-4">
+                <div className="h-px bg-border" />
+                <span className="absolute left-1/2 -translate-x-1/2 -top-2 px-2 text-xs text-muted-foreground bg-background">or continue with email</span>
+              </div>
+            </>
+          )}
 
-          <div className="relative my-4">
-            <div className="h-px bg-border" />
-            <span className="absolute left-1/2 -translate-x-1/2 -top-2 px-2 text-xs text-muted-foreground bg-background">or continue with email</span>
-          </div>
-
-          {step === 'login' ? (
+          {step === 'login' && (
             <form onSubmit={handleLogin} className="space-y-3">
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -129,19 +118,25 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onComplete }) 
               </div>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <input type="password" placeholder="Password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className="input-field pl-12" required />
+                <input type={showPassword ? 'text' : 'password'} placeholder="Password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className="input-field pl-12 pr-12" required />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
-
+              <div className="text-right">
+                <button type="button" onClick={() => setStep('forgot')} className="text-sm text-primary font-medium hover:underline">Forgot password?</button>
+              </div>
               <Button type="submit" disabled={loading} className="w-full h-12 gradient-primary text-primary-foreground rounded-xl font-semibold">
                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Sign In<ArrowRight className="w-5 h-5 ml-2" /></>}
               </Button>
-
               <p className="text-center text-sm text-muted-foreground mt-4">
                 Don't have an account?{' '}
                 <button type="button" onClick={() => setStep('signup')} className="text-primary font-semibold">Sign up</button>
               </p>
             </form>
-          ) : (
+          )}
+
+          {step === 'signup' && (
             <form onSubmit={handleSignup} className="space-y-3">
               <div className="relative">
                 <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -153,15 +148,32 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onComplete }) 
               </div>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <input type="password" placeholder="Create password (min 6 chars)" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className="input-field pl-12" required minLength={6} />
+                <input type={showPassword ? 'text' : 'password'} placeholder="Create password (min 6 chars)" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className="input-field pl-12 pr-12" required minLength={6} />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
-
               <Button type="submit" disabled={loading} className="w-full h-12 gradient-primary text-primary-foreground rounded-xl font-semibold">
                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Create Account<ArrowRight className="w-5 h-5 ml-2" /></>}
               </Button>
-
               <p className="text-center text-sm text-muted-foreground">
                 Already have an account?{' '}
+                <button type="button" onClick={() => setStep('login')} className="text-primary font-semibold">Sign in</button>
+              </p>
+            </form>
+          )}
+
+          {step === 'forgot' && (
+            <form onSubmit={handleForgotPassword} className="space-y-3">
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <input type="email" placeholder="Email address" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="input-field pl-12" required />
+              </div>
+              <Button type="submit" disabled={loading} className="w-full h-12 gradient-primary text-primary-foreground rounded-xl font-semibold">
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Send Reset Link<ArrowRight className="w-5 h-5 ml-2" /></>}
+              </Button>
+              <p className="text-center text-sm text-muted-foreground">
+                Remember your password?{' '}
                 <button type="button" onClick={() => setStep('login')} className="text-primary font-semibold">Sign in</button>
               </p>
             </form>

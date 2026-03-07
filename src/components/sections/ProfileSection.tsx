@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Settings, Edit2, MapPin, BadgeCheck, Wallet, Heart, Mountain, Utensils, Compass, Sunrise, Camera, Share2, MessageCircle, LogOut, Copy, Facebook, Twitter, Send } from 'lucide-react';
+import { Settings, Edit2, MapPin, BadgeCheck, Wallet, Heart, Mountain, Utensils, Compass, Sunrise, Camera, Share2, MessageCircle, LogOut, Copy, Facebook, Twitter, Send, Plus, ImagePlus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ProfileSettingsModal from '@/components/modals/ProfileSettingsModal';
 import EditProfileModal from '@/components/modals/EditProfileModal';
@@ -12,6 +12,13 @@ interface ProfileSectionProps {
   onOpenMessages?: () => void;
 }
 
+const LOCATION_SUGGESTIONS = [
+  'Goa, India', 'Kerala, India', 'Ladakh, India', 'Rishikesh, Uttarakhand, India', 'Manali, Himachal Pradesh, India',
+  'Hampi, Karnataka, India', 'Mumbai, Maharashtra, India', 'Delhi, India', 'Jaipur, Rajasthan, India',
+  'Paris, France', 'Tokyo, Japan', 'Bali, Indonesia', 'New York, USA', 'London, UK', 'Dubai, UAE',
+  'Barcelona, Spain', 'Rome, Italy', 'Bangkok, Thailand', 'Singapore', 'Sydney, Australia',
+];
+
 const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessages }) => {
   const { user, profile, updateProfile, signOut, refreshProfile } = useAuth();
   const [showSettings, setShowSettings] = useState(false);
@@ -21,6 +28,12 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
   const [followerCount, setFollowerCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [uploading, setUploading] = useState(false);
+  const [showCreatePost, setShowCreatePost] = useState(false);
+  const [postCaption, setPostCaption] = useState('');
+  const [postLocation, setPostLocation] = useState('');
+  const [postFile, setPostFile] = useState<File | null>(null);
+  const [creatingPost, setCreatingPost] = useState(false);
+  const [locationSuggestions, setLocationSuggestions] = useState<string[]>([]);
   const shareRef = useRef<HTMLDivElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -35,19 +48,16 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
 
   useEffect(() => {
     if (!user) return;
-
     const loadCounts = async () => {
       const [{ count: trips }, { count: followers }, { count: following }] = await Promise.all([
         supabase.from('trips').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
         supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', user.id).eq('status', 'accepted'),
         supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', user.id).eq('status', 'accepted'),
       ]);
-
       setTripCount(trips || 0);
       setFollowerCount(followers || 0);
       setFollowingCount(following || 0);
     };
-
     loadCounts();
   }, [user]);
 
@@ -60,30 +70,15 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
   const avatarUrl = profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face';
   const coverUrl = profile?.cover_url || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&h=400&fit=crop';
 
-  const interestIcons: Record<string, React.ElementType> = {
-    Adventure: Mountain,
-    Food: Utensils,
-    Culture: Compass,
-    Nature: Sunrise,
-    Photography: Camera,
-    Spirituality: Heart,
-  };
+  const interestIcons: Record<string, React.ElementType> = { Adventure: Mountain, Food: Utensils, Culture: Compass, Nature: Sunrise, Photography: Camera, Spirituality: Heart };
 
   const uploadToBucket = async (file: File, type: 'avatar' | 'cover') => {
     if (!user) return null;
-
-    const extension = file.name.split('.').pop() || 'jpg';
-    const path = `${user.id}/${type}-${Date.now()}.${extension}`;
-
-    const { error } = await supabase.storage.from('profile-media').upload(path, file, {
-      cacheControl: '3600',
-      upsert: true,
-    });
-
+    const ext = file.name.split('.').pop() || 'jpg';
+    const path = `${user.id}/${type}-${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from('profile-media').upload(path, file, { cacheControl: '3600', upsert: true });
     if (error) throw error;
-
-    const { data } = supabase.storage.from('profile-media').getPublicUrl(path);
-    return data.publicUrl;
+    return supabase.storage.from('profile-media').getPublicUrl(path).data.publicUrl;
   };
 
   const handleFileUpload = async (file: File, type: 'avatar' | 'cover') => {
@@ -91,11 +86,9 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
       setUploading(true);
       const publicUrl = await uploadToBucket(file, type);
       if (!publicUrl) throw new Error('Upload failed');
-
       const update = type === 'avatar' ? { avatar_url: publicUrl } : { cover_url: publicUrl };
       const { error } = await updateProfile(update as any);
       if (error) throw new Error(error);
-
       await refreshProfile();
       toast({ title: `${type === 'avatar' ? 'Profile' : 'Cover'} photo updated ✅` });
     } catch (e) {
@@ -106,51 +99,59 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
   };
 
   const handleShareProfile = (method: string) => {
-    const shareText = `Check out ${displayName} on TripSync! ${bio}`;
+    const shareText = `Check out ${displayName} on TripSync!`;
     const shareUrl = window.location.href;
-
-    switch (method) {
-      case 'copy':
-        navigator.clipboard.writeText(shareUrl);
-        toast({ title: 'Profile link copied! 📋' });
-        break;
-      case 'whatsapp':
-        window.open(`https://wa.me/?text=${encodeURIComponent(shareText + '\n' + shareUrl)}`, '_blank');
-        break;
-      case 'twitter':
-        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`, '_blank');
-        break;
-      case 'facebook':
-        window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`, '_blank');
-        break;
-    }
-
+    if (method === 'copy') { navigator.clipboard.writeText(shareUrl); toast({ title: 'Profile link copied! 📋' }); }
+    else if (method === 'whatsapp') window.open(`https://wa.me/?text=${encodeURIComponent(shareText + '\n' + shareUrl)}`, '_blank');
+    else if (method === 'twitter') window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`, '_blank');
+    else if (method === 'facebook') window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`, '_blank');
     setShowShareMenu(false);
   };
 
-  const handleLogout = async () => {
-    await signOut();
-    toast({ title: 'Logged out successfully 👋' });
-    onLogout?.();
-  };
+  const handleLogout = async () => { await signOut(); toast({ title: 'Logged out successfully 👋' }); onLogout?.(); };
 
   const handleProfileSave = async (data: any) => {
-    const { error } = await updateProfile({
-      display_name: data.displayName,
-      bio: data.bio,
-      location: data.location,
-      budget: data.budget,
-      personality: data.personality,
-      interests: data.interests,
-    } as any);
-
-    if (error) {
-      toast({ title: 'Profile update failed', description: error, variant: 'destructive' });
-      return;
-    }
-
+    const { error } = await updateProfile({ display_name: data.displayName, bio: data.bio, location: data.location, budget: data.budget, personality: data.personality, interests: data.interests } as any);
+    if (error) { toast({ title: 'Profile update failed', description: error, variant: 'destructive' }); return; }
     setShowEditProfile(false);
     toast({ title: 'Profile updated! ✅' });
+  };
+
+  const handlePostLocationChange = (val: string) => {
+    setPostLocation(val);
+    if (val.length >= 2) {
+      const filtered = LOCATION_SUGGESTIONS.filter(l => l.toLowerCase().includes(val.toLowerCase())).slice(0, 5);
+      setLocationSuggestions(filtered);
+    } else {
+      setLocationSuggestions([]);
+    }
+  };
+
+  const createPost = async () => {
+    if (!user || !postCaption.trim()) { toast({ title: 'Caption is required', variant: 'destructive' }); return; }
+    setCreatingPost(true);
+    try {
+      let mediaUrl: string | null = null;
+      if (postFile) {
+        const ext = postFile.name.split('.').pop() || 'jpg';
+        const path = `${user.id}/${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from('post-media').upload(path, postFile, { upsert: true });
+        if (uploadError) throw uploadError;
+        mediaUrl = supabase.storage.from('post-media').getPublicUrl(path).data.publicUrl;
+      }
+      const { error } = await supabase.from('posts').insert({ user_id: user.id, caption: postCaption, location: postLocation || null, media_url: mediaUrl, is_public: true });
+      if (error) throw error;
+      setShowCreatePost(false);
+      setPostCaption('');
+      setPostLocation('');
+      setPostFile(null);
+      setLocationSuggestions([]);
+      toast({ title: 'Post created ✅' });
+    } catch (e) {
+      toast({ title: 'Post creation failed', description: e instanceof Error ? e.message : 'Please try again', variant: 'destructive' });
+    } finally {
+      setCreatingPost(false);
+    }
   };
 
   return (
@@ -161,12 +162,10 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
             <img src={coverUrl} alt="Cover" className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent rounded-3xl" />
           </div>
-
           <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f, 'cover'); }} />
           <button disabled={uploading} onClick={() => coverInputRef.current?.click()} className="absolute top-4 left-4 w-10 h-10 bg-black/40 hover:bg-black/60 backdrop-blur-sm rounded-full flex items-center justify-center transition-colors" title="Change cover photo">
             <Camera className="w-5 h-5 text-white" />
           </button>
-
           <div className="absolute -bottom-16 left-8 flex items-end gap-6">
             <div className="relative group">
               <img src={avatarUrl} alt={displayName} className="w-32 h-32 rounded-3xl object-cover border-4 border-background shadow-xl" />
@@ -179,14 +178,9 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
               </div>
             </div>
           </div>
-
           <div className="absolute bottom-4 right-4 flex gap-2">
-            <Button variant="outline" size="sm" className="rounded-full bg-white/90 backdrop-blur-sm" onClick={() => setShowSettings(true)}>
-              <Settings className="w-4 h-4 mr-2" />Settings
-            </Button>
-            <Button size="sm" className="rounded-full gradient-primary text-white" onClick={() => setShowEditProfile(true)}>
-              <Edit2 className="w-4 h-4 mr-2" />Edit Profile
-            </Button>
+            <Button variant="outline" size="sm" className="rounded-full bg-white/90 backdrop-blur-sm" onClick={() => setShowSettings(true)}><Settings className="w-4 h-4 mr-2" />Settings</Button>
+            <Button size="sm" className="rounded-full gradient-primary text-white" onClick={() => setShowEditProfile(true)}><Edit2 className="w-4 h-4 mr-2" />Edit Profile</Button>
           </div>
         </div>
 
@@ -219,8 +213,11 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
               </div>
             </div>
             <div className="space-y-3">
+              <Button onClick={() => setShowCreatePost(true)} className="w-full h-12 gradient-primary text-primary-foreground rounded-xl font-semibold">
+                <Plus className="w-5 h-5 mr-2" />New Post
+              </Button>
               <div className="relative" ref={shareRef}>
-                <Button onClick={() => setShowShareMenu(!showShareMenu)} className="w-full h-12 gradient-primary text-primary-foreground rounded-xl font-semibold">
+                <Button onClick={() => setShowShareMenu(!showShareMenu)} variant="outline" className="w-full h-12 rounded-xl font-semibold border-2 border-primary text-primary">
                   <Share2 className="w-5 h-5 mr-2" />Share Profile
                 </Button>
                 {showShareMenu && (
@@ -244,8 +241,36 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
       </div>
 
       <ProfileSettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} onLogout={() => { setShowSettings(false); handleLogout(); }} />
-      <EditProfileModal isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} onSave={handleProfileSave}
-        initialData={{ displayName, bio, location, budget, personality, interests }} />
+      <EditProfileModal isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} onSave={handleProfileSave} initialData={{ displayName, bio, location, budget, personality, interests }} />
+
+      {showCreatePost && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-background rounded-2xl p-5 space-y-4">
+            <h3 className="text-lg font-semibold text-foreground">Create Post</h3>
+            <textarea className="input-field min-h-[110px] resize-none" placeholder="Write a caption" value={postCaption} onChange={(e) => setPostCaption(e.target.value)} />
+            <div className="relative">
+              <input className="input-field" placeholder="Location (e.g. Goa, Paris...)" value={postLocation} onChange={(e) => handlePostLocationChange(e.target.value)} />
+              {locationSuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-xl shadow-lg z-50 overflow-hidden">
+                  {locationSuggestions.map((loc) => (
+                    <button key={loc} onClick={() => { setPostLocation(loc); setLocationSuggestions([]); }} className="w-full px-4 py-2.5 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2">
+                      <MapPin className="w-3 h-3 text-muted-foreground" />{loc}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <label className="w-full h-24 border border-dashed border-border rounded-xl flex items-center justify-center text-sm text-muted-foreground cursor-pointer hover:bg-muted/50 transition-colors">
+              <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => setPostFile(e.target.files?.[0] || null)} />
+              <span className="flex items-center gap-2"><ImagePlus className="w-4 h-4" />{postFile ? postFile.name : 'Upload image or video (optional)'}</span>
+            </label>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => { setShowCreatePost(false); setLocationSuggestions([]); }}>Cancel</Button>
+              <Button className="flex-1 gradient-primary text-primary-foreground" onClick={createPost} disabled={creatingPost}>{creatingPost ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Post'}</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 };
