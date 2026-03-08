@@ -14,8 +14,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["DM Sans", "Plus Jakarta Sans", "sans-serif"],
-        display: ["Space Grotesk", "Plus Jakarta Sans", "sans-serif"],
+        sans: ["Outfit", "DM Sans", "sans-serif"],
+        display: ["Space Grotesk", "Outfit", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -73,6 +73,9 @@ export default {
           DEFAULT: "hsl(var(--ocean-blue))",
           light: "hsl(var(--ocean-light))",
         },
+        forest: "hsl(var(--forest))",
+        mint: "hsl(var(--mint))",
+        sand: "hsl(var(--sand))",
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
