@@ -258,7 +258,7 @@
 
   /* Nature-inspired card with leaf accent */
   .travel-card-nature {
-    @apply bg-card rounded-3xl p-6 transition-all duration-400 border border-primary/10 relative overflow-hidden;
+    @apply bg-card rounded-3xl p-6 transition-all duration-300 border border-primary/10 relative overflow-hidden;
     box-shadow: var(--shadow-md);
   }
 

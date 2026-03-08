@@ -72,13 +72,13 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ onNavigate, isLoggedI
         {/* Feature cards */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-20 stagger-children">
           {highlights.map(({ icon: Icon, title, description, color, iconBg, accent }) => (
-            <div key={title} className={`group relative p-7 bg-card rounded-3xl border transition-all duration-400 ${accent} hover:shadow-lg`}>
+            <div key={title} className={`group relative p-7 bg-card rounded-3xl border transition-all duration-300 ${accent} hover:shadow-lg`}>
               {/* Subtle corner accent */}
               <div className="absolute top-0 right-0 w-20 h-20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none">
                 <div className="w-full h-full bg-gradient-to-bl from-primary/5 to-transparent rounded-tr-3xl" />
               </div>
               
-              <div className={`w-14 h-14 rounded-2xl ${iconBg} flex items-center justify-center mb-5 shadow-md group-hover:scale-110 group-hover:-rotate-3 transition-all duration-400`}>
+              <div className={`w-14 h-14 rounded-2xl ${iconBg} flex items-center justify-center mb-5 shadow-md group-hover:scale-110 group-hover:-rotate-3 transition-all duration-300`}>
                 <Icon className="w-7 h-7 text-white" />
               </div>
               <h3 className="text-lg font-bold text-foreground mb-2.5 font-display">{title}</h3>
