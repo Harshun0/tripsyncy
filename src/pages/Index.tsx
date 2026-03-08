@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState, useCallback, useMemo } from 'react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import FloatingMessagesButton from '@/components/layout/FloatingMessagesButton';
@@ -6,25 +6,23 @@ import MessagesPanel from '@/components/layout/MessagesPanel';
 import HeroSection from '@/components/sections/HeroSection';
 import FeaturesSection from '@/components/sections/FeaturesSection';
 import LoginModal from '@/components/modals/LoginModal';
+import TravelersSection from '@/components/sections/TravelersSection';
+import FeedSection from '@/components/sections/FeedSection';
+import ItinerarySection from '@/components/sections/ItinerarySection';
+import ItineraryIntroSection from '@/components/sections/ItineraryIntroSection';
+import ExpenseSection from '@/components/sections/ExpenseSection';
+import ProfileSection from '@/components/sections/ProfileSection';
+import SearchSection from '@/components/sections/SearchSection';
+import AIChatModal from '@/components/sections/AIChatModal';
+import TripCreateScreen from '@/components/screens/TripCreateScreen';
+import UserProfileScreen from '@/components/screens/UserProfileScreen';
+import SavedPostsScreen from '@/components/screens/SavedPostsScreen';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Camera, Loader2 } from 'lucide-react';
-
-// Lazy load heavy sections
-const TravelersSection = lazy(() => import('@/components/sections/TravelersSection'));
-const FeedSection = lazy(() => import('@/components/sections/FeedSection'));
-const ItinerarySection = lazy(() => import('@/components/sections/ItinerarySection'));
-const ItineraryIntroSection = lazy(() => import('@/components/sections/ItineraryIntroSection'));
-const ExpenseSection = lazy(() => import('@/components/sections/ExpenseSection'));
-const ProfileSection = lazy(() => import('@/components/sections/ProfileSection'));
-const SearchSection = lazy(() => import('@/components/sections/SearchSection'));
-const AIChatModal = lazy(() => import('@/components/sections/AIChatModal'));
-const TripCreateScreen = lazy(() => import('@/components/screens/TripCreateScreen'));
-const UserProfileScreen = lazy(() => import('@/components/screens/UserProfileScreen'));
-const SavedPostsScreen = lazy(() => import('@/components/screens/SavedPostsScreen'));
 
 const Index: React.FC = () => {
   const { user, loading, profile, signOut, updateProfile } = useAuth();
@@ -194,19 +192,11 @@ const Index: React.FC = () => {
     );
   }
 
-  const SectionLoader = () => (
-    <div className="pt-20 flex items-center justify-center min-h-[50vh]">
-      <Loader2 className="w-8 h-8 animate-spin text-primary" />
-    </div>
-  );
-
   return (
     <div className="min-h-screen bg-background">
       <Header activeSection={activeSection} onNavigate={handleNavigate} isLoggedIn={isLoggedIn} onLogin={handleLogin} onLogout={handleLogout} />
       <main>
-        <Suspense fallback={<SectionLoader />}>
-          {renderContent()}
-        </Suspense>
+        {renderContent()}
       </main>
       <Footer />
 
@@ -217,9 +207,7 @@ const Index: React.FC = () => {
         </>
       )}
 
-      <Suspense fallback={null}>
-        {showAIChat && <AIChatModal isOpen={showAIChat} onClose={() => setShowAIChat(false)} />}
-      </Suspense>
+      {showAIChat && <AIChatModal isOpen={showAIChat} onClose={() => setShowAIChat(false)} />}
       <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} onComplete={handleLoginComplete} />
 
       {showOnboarding && isLoggedIn && (
