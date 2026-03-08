@@ -1,7 +1,9 @@
-import { useState, useEffect, useCallback, createContext, useContext, ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, createContext, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { lovable } from '@/integrations/lovable';
 import type { User, Session } from '@supabase/supabase-js';
+
+// ... keep existing code (Profile interface and AuthContextType)
 
 interface Profile {
   id: string;
@@ -40,6 +42,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const initializedRef = useRef(false);
 
   const ensureProfile = useCallback(async (authUser: User) => {
     const { data: existing, error } = await supabase
@@ -76,7 +79,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
+    // Get initial session first, then subscribe to changes
+    supabase.auth.getSession().then(async ({ data: { session: currentSession } }) => {
+      setSession(currentSession);
+      setUser(currentSession?.user ?? null);
+      if (currentSession?.user) {
+        await ensureProfile(currentSession.user);
+      }
+      setLoading(false);
+      initializedRef.current = true;
+    });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+      // Skip if not yet initialized (getSession handles initial load)
+      if (!initializedRef.current) return;
+
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
 
@@ -85,17 +102,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else {
         setProfile(null);
       }
-
-      setLoading(false);
-    });
-
-    supabase.auth.getSession().then(async ({ data: { session: currentSession } }) => {
-      setSession(currentSession);
-      setUser(currentSession?.user ?? null);
-      if (currentSession?.user) {
-        await ensureProfile(currentSession.user);
-      }
-      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
