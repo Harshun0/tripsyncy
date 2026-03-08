@@ -192,19 +192,11 @@ const Index: React.FC = () => {
     );
   }
 
-  const SectionLoader = () => (
-    <div className="pt-20 flex items-center justify-center min-h-[50vh]">
-      <Loader2 className="w-8 h-8 animate-spin text-primary" />
-    </div>
-  );
-
   return (
     <div className="min-h-screen bg-background">
       <Header activeSection={activeSection} onNavigate={handleNavigate} isLoggedIn={isLoggedIn} onLogin={handleLogin} onLogout={handleLogout} />
       <main>
-        <Suspense fallback={<SectionLoader />}>
-          {renderContent()}
-        </Suspense>
+        {renderContent()}
       </main>
       <Footer />
 
