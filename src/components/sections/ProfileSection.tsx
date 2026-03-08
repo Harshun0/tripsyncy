@@ -209,6 +209,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
       setPostFiles([]);
       setLocationSuggestions([]);
       toast({ title: 'Post created ✅' });
+      fetchMyPosts();
     } catch (e) {
       toast({ title: 'Post creation failed', description: e instanceof Error ? e.message : 'Please try again', variant: 'destructive' });
     } finally {
