@@ -30,7 +30,7 @@ interface FeedSectionProps {
 
 const PAGE_SIZE = 10;
 
-const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile }) => {
+const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile, onViewPost }) => {
   const { user } = useAuth();
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);
