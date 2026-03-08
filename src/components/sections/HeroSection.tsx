@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, Sparkles, Users, MapPin, Star, Play, X, Plane, Globe, Mountain } from 'lucide-react';
+import { ArrowRight, Sparkles, Users, MapPin, Star, Play, X, Plane, Globe, Mountain, Compass, TreePine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface HeroSectionProps {
@@ -19,61 +19,62 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onGetStarted, onExplore, isLo
 
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
-      {/* Layered gradient background */}
-      <div className="absolute inset-0 gradient-hero opacity-95" />
-      <div className="absolute inset-0 pattern-dots opacity-10" />
+      {/* Travel photo background */}
+      <div className="absolute inset-0">
+        <img 
+          src="https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=1920&h=1080&fit=crop&q=80" 
+          alt="" 
+          className="w-full h-full object-cover"
+          loading="eager"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/70" />
+        <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-transparent" />
+      </div>
       
-      {/* Animated floating shapes */}
+      {/* Subtle animated elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-16 left-[8%] w-80 h-80 bg-white/8 rounded-full blur-3xl animate-float" />
-        <div className="absolute bottom-16 right-[5%] w-[28rem] h-[28rem] bg-secondary/15 rounded-full blur-3xl animate-float-slow" style={{ animationDelay: '2s' }} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[32rem] h-[32rem] bg-accent/10 rounded-full blur-3xl animate-pulse-slow" />
+        <div className="absolute top-20 left-[10%] w-64 h-64 bg-primary/10 rounded-full blur-3xl animate-float" />
+        <div className="absolute bottom-24 right-[8%] w-80 h-80 bg-secondary/8 rounded-full blur-3xl animate-float-slow" style={{ animationDelay: '2s' }} />
         
-        {/* Decorative geometric shapes */}
-        <div className="absolute top-24 right-[18%] w-20 h-20 border-2 border-white/10 rounded-2xl rotate-12 animate-float" style={{ animationDelay: '0.5s' }} />
-        <div className="absolute bottom-40 left-[12%] w-16 h-16 border-2 border-white/8 rounded-full animate-float" style={{ animationDelay: '3s' }} />
-        <div className="absolute top-[60%] right-[8%] w-12 h-12 bg-white/5 rounded-xl rotate-45 animate-float-slow" style={{ animationDelay: '1.5s' }} />
-        
-        {/* Floating icons */}
-        <MapPin className="absolute top-32 right-[22%] w-8 h-8 text-white/15 animate-float" style={{ animationDelay: '0.5s' }} />
-        <Star className="absolute top-48 left-[15%] w-6 h-6 text-white/10 animate-float" style={{ animationDelay: '1s' }} />
-        <Globe className="absolute bottom-48 left-[20%] w-10 h-10 text-white/8 animate-float-slow" style={{ animationDelay: '2.5s' }} />
-        <Mountain className="absolute top-[40%] right-[10%] w-7 h-7 text-white/10 animate-float" style={{ animationDelay: '1.8s' }} />
-        <Plane className="absolute bottom-32 right-[30%] w-6 h-6 text-white/12 animate-float-slow" style={{ animationDelay: '0.8s' }} />
+        {/* Floating travel icons */}
+        <Compass className="absolute top-28 right-[20%] w-7 h-7 text-white/10 animate-float" style={{ animationDelay: '0.5s' }} />
+        <TreePine className="absolute top-48 left-[12%] w-6 h-6 text-white/8 animate-float" style={{ animationDelay: '1s' }} />
+        <Globe className="absolute bottom-44 left-[18%] w-8 h-8 text-white/6 animate-float-slow" style={{ animationDelay: '2.5s' }} />
+        <Mountain className="absolute top-[45%] right-[12%] w-7 h-7 text-white/8 animate-float" style={{ animationDelay: '1.8s' }} />
       </div>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-32">
         <div className="text-center space-y-8 max-w-4xl mx-auto stagger-children">
           {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/10 backdrop-blur-md rounded-full text-white/90 text-sm font-medium border border-white/20 shadow-lg">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-secondary"></span>
+          <div className="inline-flex items-center gap-2.5 px-5 py-2.5 bg-white/12 backdrop-blur-md rounded-full text-white/90 text-sm font-medium border border-white/15 shadow-lg">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-400"></span>
             </span>
             AI-Powered Travel Companion
           </div>
 
           {/* Main heading */}
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-white leading-[1.1] tracking-tight font-display">
-            Travel Smarter.
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-white leading-[1.08] tracking-tight font-display">
+            Explore the World.
             <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-secondary via-sunset-pink to-white animate-gradient" style={{ backgroundSize: '200% auto' }}>
-              Travel Together.
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-300 via-emerald-300 to-cyan-300 animate-gradient" style={{ backgroundSize: '200% auto' }}>
+              Find Your Tribe.
             </span>
           </h1>
 
-          <p className="text-lg sm:text-xl text-white/75 max-w-xl mx-auto leading-relaxed">
-            Find your perfect travel companions with AI-powered matching, plan smart itineraries, and explore the world safely.
+          <p className="text-lg sm:text-xl text-white/70 max-w-2xl mx-auto leading-relaxed">
+            Match with like-minded travelers, generate AI itineraries, split expenses effortlessly, and turn strangers into travel companions.
           </p>
 
           {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center pt-2">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
             <Button
               onClick={onGetStarted}
               size="lg"
-              className="h-14 px-8 bg-white text-primary hover:bg-white/90 rounded-2xl text-lg font-semibold shadow-float hover:shadow-xl transition-all duration-300 group"
+              className="h-14 px-10 bg-white text-foreground hover:bg-white/95 rounded-2xl text-lg font-semibold shadow-float hover:shadow-xl transition-all duration-300 group"
             >
-              {isLoggedIn ? 'Explore Now' : 'Get Started Free'}
+              {isLoggedIn ? 'Explore Now' : 'Start Your Journey'}
               <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1.5 transition-transform duration-300" />
             </Button>
             <Button
@@ -82,7 +83,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onGetStarted, onExplore, isLo
               className="h-14 px-8 bg-white/10 backdrop-blur-sm text-white border border-white/20 hover:bg-white/20 rounded-2xl text-lg font-semibold transition-all duration-300 group"
             >
               <Play className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
-              See How It Works
+              Watch Demo
             </Button>
           </div>
 
@@ -90,11 +91,11 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onGetStarted, onExplore, isLo
           <div className="flex flex-wrap gap-3 justify-center pt-2">
             {[
               { icon: Sparkles, label: 'AI Itineraries' },
-              { icon: Users, label: 'Find Travel Buddies' },
-              { icon: MapPin, label: 'Smart Planning' },
+              { icon: Users, label: 'Travel Buddy Matching' },
+              { icon: MapPin, label: 'Live Traveler Map' },
             ].map(({ icon: Icon, label }) => (
-              <div key={label} className="flex items-center gap-2 px-4 py-2 bg-white/8 backdrop-blur-sm rounded-full text-white/80 text-sm border border-white/10 hover:bg-white/15 hover:text-white transition-all duration-300 cursor-default">
-                <Icon className="w-4 h-4" />{label}
+              <div key={label} className="flex items-center gap-2 px-4 py-2.5 bg-white/8 backdrop-blur-sm rounded-full text-white/75 text-sm border border-white/10 hover:bg-white/15 hover:text-white transition-all duration-300 cursor-default">
+                <Icon className="w-4 h-4 text-green-300" />{label}
               </div>
             ))}
           </div>
@@ -105,11 +106,11 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onGetStarted, onExplore, isLo
           <div className="grid grid-cols-3 gap-6 max-w-2xl mx-auto stagger-children">
             {stats.map(({ value, label, icon: Icon }) => (
               <div key={label} className="text-center group cursor-default">
-                <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center group-hover:bg-white/20 transition-all duration-300 group-hover:scale-110">
-                  <Icon className="w-6 h-6 text-white/80" />
+                <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center group-hover:bg-white/20 transition-all duration-300 group-hover:scale-110 border border-white/10">
+                  <Icon className="w-6 h-6 text-green-300" />
                 </div>
                 <p className="text-3xl sm:text-4xl font-bold text-white font-display">{value}</p>
-                <p className="text-white/50 text-sm mt-1">{label}</p>
+                <p className="text-white/45 text-sm mt-1">{label}</p>
               </div>
             ))}
           </div>
@@ -119,7 +120,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onGetStarted, onExplore, isLo
       {/* Wave divider */}
       <div className="absolute bottom-0 left-0 right-0">
         <svg viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full">
-          <path d="M0 120L48 110C96 100 192 80 288 70C384 60 480 60 576 65C672 70 768 80 864 85C960 90 1056 90 1152 85C1248 80 1344 70 1392 65L1440 60V120H0Z" fill="hsl(var(--background))" />
+          <path d="M0 120L60 108C120 96 240 72 360 60C480 48 600 48 720 56C840 64 960 80 1080 86C1200 92 1320 88 1380 86L1440 84V120H0Z" fill="hsl(var(--background))" />
         </svg>
       </div>
 

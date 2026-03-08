@@ -73,6 +73,9 @@ export default {
           DEFAULT: "hsl(var(--ocean-blue))",
           light: "hsl(var(--ocean-light))",
         },
+        forest: "hsl(var(--forest))",
+        mint: "hsl(var(--mint))",
+        sand: "hsl(var(--sand))",
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",

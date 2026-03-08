@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap');
 @import 'leaflet/dist/leaflet.css';
 
 /* Fix leaflet marker icons in Vite */
@@ -13,75 +13,82 @@
 
 @layer base {
   :root {
-    --background: 220 20% 97%;
-    --foreground: 230 25% 10%;
+    --background: 150 20% 97%;
+    --foreground: 200 30% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 230 25% 10%;
+    --card-foreground: 200 30% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 230 25% 10%;
+    --popover-foreground: 200 30% 10%;
 
-    --primary: 168 80% 38%;
+    --primary: 160 65% 40%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 20 100% 62%;
+    --secondary: 25 95% 58%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 220 18% 93%;
-    --muted-foreground: 220 10% 46%;
+    --muted: 160 12% 92%;
+    --muted-foreground: 200 10% 44%;
 
-    --accent: 205 95% 50%;
+    --accent: 200 80% 52%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 80% 58%;
+    --destructive: 0 75% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 152 70% 38%;
+    --success: 155 65% 38%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 40 96% 50%;
+    --warning: 42 96% 52%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 220 18% 88%;
-    --input: 220 18% 88%;
-    --ring: 168 80% 38%;
+    --border: 160 12% 88%;
+    --input: 160 12% 88%;
+    --ring: 160 65% 40%;
 
     --radius: 1rem;
 
-    /* TripSync Palette */
-    --teal: 168 80% 38%;
-    --teal-light: 168 60% 94%;
-    --teal-dark: 168 80% 26%;
+    /* TripSync Nature Palette */
+    --teal: 160 65% 40%;
+    --teal-light: 160 45% 94%;
+    --teal-dark: 160 65% 28%;
     
-    --sunset-orange: 20 100% 62%;
-    --sunset-coral: 8 90% 60%;
-    --sunset-pink: 340 85% 65%;
+    --sunset-orange: 25 95% 58%;
+    --sunset-coral: 12 85% 58%;
+    --sunset-pink: 345 80% 62%;
     
-    --ocean-blue: 205 95% 50%;
-    --ocean-light: 205 90% 94%;
+    --ocean-blue: 200 80% 52%;
+    --ocean-light: 200 70% 94%;
+
+    --forest: 145 50% 32%;
+    --mint: 160 55% 85%;
+    --sand: 38 60% 90%;
     
-    --sky-gradient-start: 205 90% 68%;
-    --sky-gradient-end: 168 80% 48%;
+    --sky-gradient-start: 200 75% 65%;
+    --sky-gradient-end: 160 65% 50%;
     
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(168 80% 38%) 0%, hsl(205 95% 50%) 100%);
-    --gradient-sunset: linear-gradient(135deg, hsl(20 100% 62%) 0%, hsl(340 85% 65%) 100%);
-    --gradient-ocean: linear-gradient(180deg, hsl(205 90% 68%) 0%, hsl(168 80% 48%) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(220 20% 97%) 100%);
-    --gradient-hero: linear-gradient(135deg, hsl(168 80% 28%) 0%, hsl(205 95% 42%) 40%, hsl(20 100% 56%) 100%);
-    --gradient-glass: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.6) 100%);
-    --gradient-mesh: radial-gradient(at 40% 20%, hsl(168 80% 90%) 0px, transparent 50%), radial-gradient(at 80% 0%, hsl(205 95% 88%) 0px, transparent 50%), radial-gradient(at 0% 50%, hsl(20 100% 92%) 0px, transparent 50%);
+    --gradient-primary: linear-gradient(135deg, hsl(160 65% 40%) 0%, hsl(200 80% 52%) 100%);
+    --gradient-sunset: linear-gradient(135deg, hsl(25 95% 58%) 0%, hsl(345 80% 62%) 100%);
+    --gradient-ocean: linear-gradient(180deg, hsl(200 75% 65%) 0%, hsl(160 65% 50%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(150 20% 97%) 100%);
+    --gradient-hero: linear-gradient(160deg, hsl(160 65% 25%) 0%, hsl(200 80% 38%) 35%, hsl(25 95% 52%) 100%);
+    --gradient-glass: linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.65) 100%);
+    --gradient-mesh: radial-gradient(at 20% 30%, hsl(160 65% 92%) 0px, transparent 50%), radial-gradient(at 80% 10%, hsl(200 80% 90%) 0px, transparent 50%), radial-gradient(at 50% 80%, hsl(38 60% 93%) 0px, transparent 50%);
+    --gradient-nature: linear-gradient(135deg, hsl(160 65% 40%) 0%, hsl(145 50% 32%) 50%, hsl(160 55% 45%) 100%);
+    --gradient-warm: linear-gradient(135deg, hsl(25 95% 58%) 0%, hsl(42 96% 52%) 100%);
     
     /* Shadows */
-    --shadow-sm: 0 1px 3px 0 hsl(230 25% 10% / 0.04), 0 1px 2px -1px hsl(230 25% 10% / 0.04);
-    --shadow-md: 0 4px 12px -2px hsl(230 25% 10% / 0.08), 0 2px 6px -2px hsl(230 25% 10% / 0.04);
-    --shadow-lg: 0 12px 24px -4px hsl(230 25% 10% / 0.1), 0 4px 8px -4px hsl(230 25% 10% / 0.06);
-    --shadow-xl: 0 24px 48px -8px hsl(230 25% 10% / 0.12), 0 12px 16px -8px hsl(230 25% 10% / 0.06);
-    --shadow-glow: 0 0 48px hsl(168 80% 38% / 0.25), 0 0 16px hsl(168 80% 38% / 0.15);
-    --shadow-glow-sunset: 0 0 48px hsl(20 100% 62% / 0.25), 0 0 16px hsl(20 100% 62% / 0.15);
-    --shadow-chat: 0 -4px 24px hsl(230 25% 10% / 0.08);
-    --shadow-float: 0 20px 40px -12px hsl(230 25% 10% / 0.15);
+    --shadow-sm: 0 1px 3px 0 hsl(200 30% 10% / 0.03), 0 1px 2px -1px hsl(200 30% 10% / 0.03);
+    --shadow-md: 0 4px 14px -2px hsl(200 30% 10% / 0.06), 0 2px 6px -2px hsl(200 30% 10% / 0.03);
+    --shadow-lg: 0 12px 28px -4px hsl(200 30% 10% / 0.08), 0 4px 10px -4px hsl(200 30% 10% / 0.04);
+    --shadow-xl: 0 24px 48px -8px hsl(200 30% 10% / 0.1), 0 12px 16px -8px hsl(200 30% 10% / 0.05);
+    --shadow-glow: 0 0 40px hsl(160 65% 40% / 0.2), 0 0 14px hsl(160 65% 40% / 0.12);
+    --shadow-glow-sunset: 0 0 40px hsl(25 95% 58% / 0.2), 0 0 14px hsl(25 95% 58% / 0.12);
+    --shadow-chat: 0 -4px 20px hsl(200 30% 10% / 0.06);
+    --shadow-float: 0 20px 40px -12px hsl(200 30% 10% / 0.12);
+    --shadow-soft: 0 8px 32px -8px hsl(160 65% 40% / 0.15);
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -94,36 +101,36 @@
   }
 
   .dark {
-    --background: 230 20% 7%;
-    --foreground: 220 20% 95%;
+    --background: 200 25% 7%;
+    --foreground: 160 15% 95%;
 
-    --card: 230 20% 11%;
-    --card-foreground: 220 20% 95%;
+    --card: 200 20% 11%;
+    --card-foreground: 160 15% 95%;
 
-    --popover: 230 20% 11%;
-    --popover-foreground: 220 20% 95%;
+    --popover: 200 20% 11%;
+    --popover-foreground: 160 15% 95%;
 
-    --primary: 168 80% 48%;
-    --primary-foreground: 230 20% 7%;
+    --primary: 160 65% 48%;
+    --primary-foreground: 200 25% 7%;
 
-    --secondary: 20 100% 62%;
-    --secondary-foreground: 230 20% 7%;
+    --secondary: 25 95% 58%;
+    --secondary-foreground: 200 25% 7%;
 
-    --muted: 230 15% 16%;
-    --muted-foreground: 220 12% 60%;
+    --muted: 200 15% 16%;
+    --muted-foreground: 200 10% 58%;
 
-    --accent: 205 95% 50%;
-    --accent-foreground: 230 20% 7%;
+    --accent: 200 80% 52%;
+    --accent-foreground: 200 25% 7%;
 
-    --destructive: 0 62% 32%;
-    --destructive-foreground: 220 20% 95%;
+    --destructive: 0 60% 32%;
+    --destructive-foreground: 160 15% 95%;
 
-    --border: 230 15% 18%;
-    --input: 230 15% 18%;
-    --ring: 168 80% 48%;
+    --border: 200 15% 18%;
+    --input: 200 15% 18%;
+    --ring: 160 65% 48%;
 
-    --gradient-glass: linear-gradient(135deg, rgba(30,35,50,0.9) 0%, rgba(30,35,50,0.6) 100%);
-    --gradient-mesh: radial-gradient(at 40% 20%, hsl(168 80% 15%) 0px, transparent 50%), radial-gradient(at 80% 0%, hsl(205 95% 15%) 0px, transparent 50%), radial-gradient(at 0% 50%, hsl(20 100% 15%) 0px, transparent 50%);
+    --gradient-glass: linear-gradient(135deg, rgba(20,30,35,0.92) 0%, rgba(20,30,35,0.65) 100%);
+    --gradient-mesh: radial-gradient(at 20% 30%, hsl(160 65% 12%) 0px, transparent 50%), radial-gradient(at 80% 10%, hsl(200 80% 12%) 0px, transparent 50%), radial-gradient(at 50% 80%, hsl(25 95% 12%) 0px, transparent 50%);
   }
 }
 
@@ -139,12 +146,12 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'DM Sans', 'Plus Jakarta Sans', sans-serif;
+    font-family: 'Outfit', 'DM Sans', sans-serif;
     overflow-x: hidden;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Space Grotesk', 'Plus Jakarta Sans', sans-serif;
+    font-family: 'Space Grotesk', 'Outfit', sans-serif;
   }
 
   img, video {
@@ -179,6 +186,14 @@
   .gradient-mesh {
     background: var(--gradient-mesh);
   }
+
+  .gradient-nature {
+    background: var(--gradient-nature);
+  }
+
+  .gradient-warm {
+    background: var(--gradient-warm);
+  }
   
   .shadow-glow {
     box-shadow: var(--shadow-glow);
@@ -199,6 +214,10 @@
   .shadow-chat {
     box-shadow: var(--shadow-chat);
   }
+
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
   
   .glass-effect {
     @apply backdrop-blur-xl;
@@ -207,7 +226,7 @@
   }
   
   .travel-card {
-    @apply bg-card rounded-2xl p-4 transition-all duration-300 border border-border/50;
+    @apply bg-card rounded-2xl p-4 transition-all duration-300 border border-border/40;
     box-shadow: var(--shadow-md);
   }
 
@@ -235,6 +254,24 @@
   .travel-card-glow:hover {
     box-shadow: var(--shadow-glow);
     transform: translateY(-4px);
+  }
+
+  /* Nature-inspired card with leaf accent */
+  .travel-card-nature {
+    @apply bg-card rounded-3xl p-6 transition-all duration-400 border border-primary/10 relative overflow-hidden;
+    box-shadow: var(--shadow-md);
+  }
+
+  .travel-card-nature::after {
+    content: '';
+    @apply absolute top-0 right-0 w-24 h-24 opacity-5 pointer-events-none;
+    background: radial-gradient(circle at top right, hsl(var(--primary)), transparent 70%);
+  }
+
+  .travel-card-nature:hover {
+    box-shadow: var(--shadow-soft);
+    transform: translateY(-3px);
+    border-color: hsl(var(--primary) / 0.25);
   }
   
   .mobile-frame {
@@ -292,15 +329,21 @@
   /* Noise texture overlay */
   .texture-noise::after {
     content: '';
-    @apply absolute inset-0 pointer-events-none opacity-[0.03];
+    @apply absolute inset-0 pointer-events-none opacity-[0.02];
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
     background-size: 256px;
   }
 
   /* Dot grid pattern */
   .pattern-dots {
-    background-image: radial-gradient(circle, hsl(var(--foreground) / 0.06) 1px, transparent 1px);
-    background-size: 24px 24px;
+    background-image: radial-gradient(circle, hsl(var(--foreground) / 0.04) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+
+  /* Leaf pattern */
+  .pattern-leaf {
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 5 C20 20 10 30 30 55 C50 30 40 20 30 5Z' fill='none' stroke='%2340b98f' stroke-width='0.5' opacity='0.04'/%3E%3C/svg%3E");
+    background-size: 60px 60px;
   }
 
   /* Animated gradient border */
@@ -348,6 +391,10 @@
     background-size: 300% 300%;
     animation: gradient-shift 8s ease infinite;
   }
+
+  .animate-sway {
+    animation: sway 4s ease-in-out infinite;
+  }
   
   @keyframes float {
     0%, 100% { transform: translateY(0px); }
@@ -359,6 +406,11 @@
     50% { background-position: 100% 50%; }
     100% { background-position: 0% 50%; }
   }
+
+  @keyframes sway {
+    0%, 100% { transform: rotate(-2deg); }
+    50% { transform: rotate(2deg); }
+  }
   
   .animate-bounce-slow {
     animation: bounce 2s infinite;
@@ -369,12 +421,12 @@
     @apply opacity-0 animate-fade-in;
   }
   .stagger-children > *:nth-child(1) { animation-delay: 0ms; }
-  .stagger-children > *:nth-child(2) { animation-delay: 80ms; }
-  .stagger-children > *:nth-child(3) { animation-delay: 160ms; }
-  .stagger-children > *:nth-child(4) { animation-delay: 240ms; }
-  .stagger-children > *:nth-child(5) { animation-delay: 320ms; }
-  .stagger-children > *:nth-child(6) { animation-delay: 400ms; }
-  .stagger-children > *:nth-child(n+7) { animation-delay: 480ms; }
+  .stagger-children > *:nth-child(2) { animation-delay: 100ms; }
+  .stagger-children > *:nth-child(3) { animation-delay: 200ms; }
+  .stagger-children > *:nth-child(4) { animation-delay: 300ms; }
+  .stagger-children > *:nth-child(5) { animation-delay: 400ms; }
+  .stagger-children > *:nth-child(6) { animation-delay: 500ms; }
+  .stagger-children > *:nth-child(n+7) { animation-delay: 600ms; }
 
   .stagger-children > * {
     animation-fill-mode: forwards;
@@ -390,6 +442,11 @@
   .text-gradient-sunset {
     @apply bg-clip-text text-transparent;
     background-image: var(--gradient-sunset);
+  }
+
+  .text-gradient-warm {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-warm);
   }
   
   .scrollbar-hide {
