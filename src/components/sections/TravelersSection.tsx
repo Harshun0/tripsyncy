@@ -4,6 +4,9 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 interface TravelerProfile {
   id: string;
@@ -12,6 +15,85 @@ interface TravelerProfile {
   location: string | null;
   bio: string | null;
   interests: string[];
+}
+
+// Known city coordinates for geocoding
+const CITY_COORDS: Record<string, [number, number]> = {
+  'goa': [15.2993, 74.124],
+  'kerala': [10.8505, 76.2711],
+  'mumbai': [19.076, 72.8777],
+  'delhi': [28.7041, 77.1025],
+  'jaipur': [26.9124, 75.7873],
+  'bangalore': [12.9716, 77.5946],
+  'bengaluru': [12.9716, 77.5946],
+  'chennai': [13.0827, 80.2707],
+  'kolkata': [22.5726, 88.3639],
+  'hyderabad': [17.385, 78.4867],
+  'pune': [18.5204, 73.8567],
+  'nagpur': [21.1458, 79.0882],
+  'manali': [32.2396, 77.1887],
+  'shimla': [31.1048, 77.1734],
+  'dharamshala': [32.219, 76.3234],
+  'rishikesh': [30.0869, 78.2676],
+  'varanasi': [25.3176, 82.9739],
+  'agra': [27.1767, 78.0081],
+  'udaipur': [24.5854, 73.7125],
+  'ladakh': [34.1526, 77.5771],
+  'leh': [34.1526, 77.5771],
+  'darjeeling': [27.041, 88.2663],
+  'gangtok': [27.3389, 88.6065],
+  'hampi': [15.335, 76.46],
+  'ooty': [11.4102, 76.6950],
+  'munnar': [10.0889, 77.0595],
+  'pondicherry': [11.9416, 79.8083],
+  'amritsar': [31.6340, 74.8723],
+  'chandigarh': [30.7333, 76.7794],
+  'lucknow': [26.8467, 80.9462],
+  'ahmedabad': [23.0225, 72.5714],
+  'coorg': [12.3375, 75.8069],
+  'mysore': [12.2958, 76.6394],
+  'indore': [22.7196, 75.8577],
+  'bhopal': [23.2599, 77.4126],
+  'surat': [21.1702, 72.8311],
+  'paris': [48.8566, 2.3522],
+  'london': [51.5074, -0.1278],
+  'tokyo': [35.6762, 139.6503],
+  'new york': [40.7128, -74.0060],
+  'dubai': [25.2048, 55.2708],
+  'singapore': [1.3521, 103.8198],
+  'bali': [-8.3405, 115.092],
+  'bangkok': [13.7563, 100.5018],
+  'sydney': [-33.8688, 151.2093],
+  'rome': [41.9028, 12.4964],
+  'barcelona': [41.3874, 2.1686],
+  'india': [20.5937, 78.9629],
+};
+
+const DEFAULT_CENTER: [number, number] = [20.5937, 78.9629]; // India center
+
+function getCoords(location: string | null, index: number): [number, number] {
+  if (!location) {
+    // Spread around India with slight randomness
+    return [DEFAULT_CENTER[0] + (Math.random() - 0.5) * 10, DEFAULT_CENTER[1] + (Math.random() - 0.5) * 10];
+  }
+  const lower = location.toLowerCase();
+  for (const [city, coords] of Object.entries(CITY_COORDS)) {
+    if (lower.includes(city)) {
+      // Add slight jitter so markers don't overlap
+      return [coords[0] + (Math.random() - 0.5) * 0.05, coords[1] + (Math.random() - 0.5) * 0.05];
+    }
+  }
+  return [DEFAULT_CENTER[0] + (Math.random() - 0.5) * 8, DEFAULT_CENTER[1] + (Math.random() - 0.5) * 8];
+}
+
+function createAvatarIcon(avatarUrl: string) {
+  return L.divIcon({
+    className: 'custom-avatar-marker',
+    html: `<div style="width:40px;height:40px;border-radius:50%;border:3px solid hsl(var(--primary));overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.3);"><img src="${avatarUrl}" style="width:100%;height:100%;object-fit:cover;" /></div>`,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+    popupAnchor: [0, -24],
+  });
 }
 
 const TravelersSection: React.FC = () => {
@@ -47,69 +129,54 @@ const TravelersSection: React.FC = () => {
 
   const filteredTravelers = useMemo(() => travelers, [travelers]);
 
+  // Memoize coordinates so they don't change on re-render
+  const travelerCoords = useMemo(() => {
+    return filteredTravelers.map((t, i) => ({
+      ...t,
+      coords: getCoords(t.location, i),
+    }));
+  }, [filteredTravelers]);
+
   const handleFollow = async (targetUserId: string, name: string) => {
     if (!user) return;
-
     const status = followMap[targetUserId];
     if (!status) {
-      const { error } = await supabase.from('follows').insert({
-        follower_id: user.id,
-        following_id: targetUserId,
-        status: 'pending',
-      });
-      if (error) {
-        toast({ title: 'Follow request failed', description: error.message, variant: 'destructive' });
-        return;
-      }
+      const { error } = await supabase.from('follows').insert({ follower_id: user.id, following_id: targetUserId, status: 'pending' });
+      if (error) { toast({ title: 'Follow request failed', description: error.message, variant: 'destructive' }); return; }
       setFollowMap((prev) => ({ ...prev, [targetUserId]: 'pending' }));
       toast({ title: `Request sent to ${name}` });
       return;
     }
-
     await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', targetUserId);
-    setFollowMap((prev) => {
-      const next = { ...prev };
-      delete next[targetUserId];
-      return next;
-    });
+    setFollowMap((prev) => { const next = { ...prev }; delete next[targetUserId]; return next; });
     toast({ title: status === 'accepted' ? `Unfollowed ${name}` : 'Request cancelled' });
   };
 
-  const renderMap = (fullScreen: boolean) => {
-    const mapTravelers = filteredTravelers.slice(0, fullScreen ? 12 : 6);
-    const size = fullScreen ? 20 : 16;
-    const centerSize = fullScreen ? 20 : 16;
-    const baseDistance = fullScreen ? 80 : 60;
-    const distanceStep = fullScreen ? 14 : 8;
+  const mapCenter: [number, number] = travelerCoords.length > 0
+    ? [travelerCoords.reduce((s, t) => s + t.coords[0], 0) / travelerCoords.length, travelerCoords.reduce((s, t) => s + t.coords[1], 0) / travelerCoords.length]
+    : DEFAULT_CENTER;
 
-    return (
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="relative">
-          <div className={`w-${centerSize} h-${centerSize} gradient-primary rounded-full flex items-center justify-center shadow-glow animate-pulse-slow`} style={{ width: fullScreen ? 80 : 64, height: fullScreen ? 80 : 64 }}>
-            <MapPin className="text-white" style={{ width: fullScreen ? 40 : 32, height: fullScreen ? 40 : 32 }} />
-          </div>
-          {mapTravelers.map((traveler, index) => {
-            const angleStep = 360 / mapTravelers.length;
-            const angle = (index * angleStep) * (Math.PI / 180);
-            const distance = baseDistance + (index + 1) * distanceStep;
-            const x = Math.cos(angle) * distance;
-            const y = Math.sin(angle) * distance;
-            const imgSize = fullScreen ? 56 : 48;
-            return (
-              <div key={traveler.id} className="absolute rounded-full border-2 border-background shadow-lg overflow-hidden group cursor-pointer" style={{ width: imgSize, height: imgSize, transform: `translate(${x}px, ${y}px)`, left: '50%', top: '50%', marginLeft: -imgSize / 2, marginTop: -imgSize / 2 }}>
-                <img src={traveler.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=face'} alt={traveler.display_name} className="w-full h-full object-cover" />
-                {fullScreen && (
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <span className="text-white text-xs font-medium text-center px-1">{traveler.display_name.split(' ')[0]}</span>
-                  </div>
-                )}
+  const renderLeafletMap = (height: string, zoom: number) => (
+    <MapContainer center={mapCenter} zoom={zoom} style={{ height, width: '100%' }} scrollWheelZoom={true} zoomControl={false}>
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
+      {travelerCoords.map((t) => (
+        <Marker key={t.id} position={t.coords} icon={createAvatarIcon(t.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=face')}>
+          <Popup>
+            <div className="flex items-center gap-2 min-w-[140px]">
+              <img src={t.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=60&h=60&fit=crop&crop=face'} alt={t.display_name} className="w-10 h-10 rounded-full object-cover" />
+              <div>
+                <p className="font-semibold text-sm">{t.display_name}</p>
+                <p className="text-xs text-gray-500">{t.location || 'Nearby'}</p>
               </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
+            </div>
+          </Popup>
+        </Marker>
+      ))}
+    </MapContainer>
+  );
 
   return (
     <section className="py-20 lg:py-32 bg-background">
@@ -117,7 +184,7 @@ const TravelersSection: React.FC = () => {
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-12">
           <div>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-4">Discover <span className="text-gradient">Nearby Travelers</span></h2>
-            <p className="text-lg text-muted-foreground max-w-xl">All profiles shown here are real user profiles.</p>
+            <p className="text-lg text-muted-foreground max-w-xl">Real user profiles shown on a live map.</p>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             <span className="text-sm text-muted-foreground">Radius:</span>
@@ -128,13 +195,13 @@ const TravelersSection: React.FC = () => {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8 mb-12">
-          <div className="lg:col-span-2 h-72 rounded-3xl overflow-hidden relative bg-gradient-to-br from-ocean-light to-teal-light shadow-lg cursor-pointer group" onClick={() => setShowFullMap(true)}>
-            {renderMap(false)}
-            <div className="absolute top-4 right-4 w-10 h-10 bg-background/90 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="lg:col-span-2 h-80 rounded-3xl overflow-hidden relative shadow-lg cursor-pointer group" onClick={() => setShowFullMap(true)}>
+            {renderLeafletMap('100%', 5)}
+            <div className="absolute top-4 right-4 z-[1000] w-10 h-10 bg-background/90 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg opacity-70 group-hover:opacity-100 transition-opacity">
               <Maximize2 className="w-5 h-5 text-foreground" />
             </div>
-            <div className="absolute bottom-4 left-4 right-4 bg-background/95 backdrop-blur-sm rounded-2xl px-4 py-3 shadow-lg">
-              <p className="text-sm text-foreground font-medium flex items-center gap-2"><Users className="w-4 h-4 text-primary" />{filteredTravelers.length} real travelers nearby · <span className="text-primary text-xs">Click to expand map</span></p>
+            <div className="absolute bottom-4 left-4 right-4 z-[1000] bg-background/95 backdrop-blur-sm rounded-2xl px-4 py-3 shadow-lg">
+              <p className="text-sm text-foreground font-medium flex items-center gap-2"><Users className="w-4 h-4 text-primary" />{filteredTravelers.length} travelers nearby · <span className="text-primary text-xs">Click to expand</span></p>
             </div>
           </div>
 
@@ -176,16 +243,16 @@ const TravelersSection: React.FC = () => {
       {/* Full Screen Map Modal */}
       {showFullMap && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={() => setShowFullMap(false)}>
-          <div className="absolute inset-4 lg:inset-12 bg-gradient-to-br from-ocean-light to-teal-light rounded-3xl overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <button onClick={() => setShowFullMap(false)} className="absolute top-4 right-4 z-10 w-10 h-10 bg-background/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg hover:bg-background transition-colors">
+          <div className="absolute inset-4 lg:inset-8 rounded-3xl overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setShowFullMap(false)} className="absolute top-4 right-4 z-[1000] w-10 h-10 bg-background/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg hover:bg-background transition-colors">
               <X className="w-5 h-5 text-foreground" />
             </button>
-            <div className="absolute top-4 left-4 z-10 bg-background/90 backdrop-blur-sm rounded-2xl px-4 py-2 shadow-lg">
+            <div className="absolute top-4 left-4 z-[1000] bg-background/90 backdrop-blur-sm rounded-2xl px-4 py-2 shadow-lg">
               <h3 className="font-semibold text-foreground text-sm">Nearby Travelers Map</h3>
               <p className="text-xs text-muted-foreground">{filteredTravelers.length} travelers within {selectedRadius} km</p>
             </div>
-            {renderMap(true)}
-            <div className="absolute bottom-4 left-4 right-4 bg-background/95 backdrop-blur-sm rounded-2xl p-4 shadow-lg">
+            {renderLeafletMap('100%', 5)}
+            <div className="absolute bottom-4 left-4 right-4 z-[1000] bg-background/95 backdrop-blur-sm rounded-2xl p-4 shadow-lg">
               <div className="flex gap-3 overflow-x-auto pb-1">
                 {filteredTravelers.slice(0, 8).map((t) => (
                   <div key={t.id} className="flex-shrink-0 flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2">
