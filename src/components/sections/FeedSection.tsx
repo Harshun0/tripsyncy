@@ -267,6 +267,60 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile, onViewPost
     setShareMenuOpen(null);
   };
 
+  const handleShareWithUser = async (post: FeedPost, targetUserId: string, targetName: string) => {
+    if (!user) return;
+    try {
+      // Find or create a conversation with this user
+      const { data: existingConvos } = await supabase
+        .from('conversation_participants')
+        .select('conversation_id')
+        .eq('user_id', user.id);
+      
+      let conversationId: string | null = null;
+      
+      if (existingConvos && existingConvos.length > 0) {
+        const convoIds = existingConvos.map((c: any) => c.conversation_id);
+        const { data: targetConvos } = await supabase
+          .from('conversation_participants')
+          .select('conversation_id')
+          .eq('user_id', targetUserId)
+          .in('conversation_id', convoIds);
+        if (targetConvos && targetConvos.length > 0) {
+          conversationId = targetConvos[0].conversation_id;
+        }
+      }
+
+      if (!conversationId) {
+        const { data: newConvo } = await supabase
+          .from('conversations')
+          .insert({ created_by: user.id })
+          .select('id')
+          .single();
+        if (newConvo) {
+          conversationId = newConvo.id;
+          await supabase.from('conversation_participants').insert([
+            { conversation_id: conversationId, user_id: user.id },
+            { conversation_id: conversationId, user_id: targetUserId },
+          ]);
+        }
+      }
+
+      if (conversationId) {
+        const shareMsg = `📸 Shared a post by ${post.userName}: "${post.caption}" ${post.image ? '\n' + post.image.split(',')[0].trim() : ''}`;
+        await supabase.from('direct_messages').insert({
+          conversation_id: conversationId,
+          sender_id: user.id,
+          content: shareMsg,
+        });
+        toast({ title: `Shared with ${targetName} 🚀` });
+      }
+    } catch {
+      toast({ title: 'Failed to share', variant: 'destructive' });
+    }
+    setSharingWithUser(null);
+    setShareMenuOpen(null);
+  };
+
   const isVideo = (url: string) => /\.(mp4|webm|mov|ogg)$/i.test(url);
 
   const visiblePosts = useMemo(() => posts.filter((p) => !blockedIds.has(p.userId)), [posts, blockedIds]);
