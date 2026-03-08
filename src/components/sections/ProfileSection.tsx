@@ -371,7 +371,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
                             <MoreVertical className="w-4 h-4 text-muted-foreground" />
                           </button>
                           {postMenuOpen === post.id && (
-                            <div className="absolute right-0 top-full mt-1 bg-background border border-border rounded-xl shadow-lg z-50 overflow-hidden min-w-[120px]">
+                            <div className="absolute right-0 bottom-full mb-1 bg-background border border-border rounded-xl shadow-lg z-50 overflow-hidden min-w-[120px]">
                               <button onClick={() => { setEditingPost(post); setEditCaption(post.caption || ''); setPostMenuOpen(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors">
                                 <Pencil className="w-3.5 h-3.5" />Edit
                               </button>
