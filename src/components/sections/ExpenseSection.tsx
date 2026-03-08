@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Wallet, ArrowRight, Check, Clock, Send, Users, CreditCard, X, UserPlus, Loader2, CheckCircle2, TrendingUp, TrendingDown, Scale } from 'lucide-react';
+import { Plus, Wallet, ArrowRight, Check, Clock, Send, Users, CreditCard, X, UserPlus, Loader2, CheckCircle2, TrendingUp, TrendingDown, Scale, UsersRound, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -15,6 +15,14 @@ interface ExpenseRow {
   created_at: string;
   upi_id: string | null;
   payment_method: string | null;
+  group_id: string | null;
+}
+
+interface ExpenseGroup {
+  id: string;
+  name: string;
+  created_by: string;
+  members: string[]; // user ids
 }
 
 const ExpenseSection: React.FC = () => {
@@ -22,19 +30,26 @@ const ExpenseSection: React.FC = () => {
   const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
   const [profileNames, setProfileNames] = useState<Record<string, string>>({});
   const [friends, setFriends] = useState<{ id: string; name: string }[]>([]);
+  const [groups, setGroups] = useState<ExpenseGroup[]>([]);
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
 
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showReminder, setShowReminder] = useState(false);
   const [showUPIModal, setShowUPIModal] = useState(false);
-  const [showSettleModal, setShowSettleModal] = useState(false);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [settlingId, setSettlingId] = useState<string | null>(null);
   const [reminderMessage, setReminderMessage] = useState('Please settle pending trip expenses.');
   const [newExpense, setNewExpense] = useState({ title: '', amount: '', paidBy: user?.id || '', splitWith: [] as string[] });
   const [upiForm, setUpiForm] = useState({ app: 'Google Pay', upiId: '', amount: '', note: 'Trip expense settlement' });
   const [submittingExpense, setSubmittingExpense] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupMembers, setNewGroupMembers] = useState<string[]>([]);
+  const [creatingGroup, setCreatingGroup] = useState(false);
+
   const loadData = async () => {
     if (!user) return;
 
+    // Load expenses
     const { data: expenseRows } = await supabase
       .from('expenses')
       .select('*')
@@ -44,17 +59,14 @@ const ExpenseSection: React.FC = () => {
     const expenseData = (expenseRows || []) as ExpenseRow[];
     setExpenses(expenseData);
 
+    // Collect all user IDs
     const ids = new Set<string>([user.id]);
     expenseData.forEach((e) => {
       ids.add(e.paid_by);
       (e.split_with || []).forEach((id) => ids.add(id));
     });
 
-    const { data: profiles } = await supabase.from('profiles').select('id,display_name').in('id', Array.from(ids));
-    const names: Record<string, string> = {};
-    (profiles || []).forEach((p: any) => { names[p.id] = p.display_name; });
-    setProfileNames(names);
-
+    // Load friends (accepted follows)
     const { data: acceptedFollows } = await supabase
       .from('follows')
       .select('follower_id,following_id,status')
@@ -62,12 +74,43 @@ const ExpenseSection: React.FC = () => {
       .or(`follower_id.eq.${user.id},following_id.eq.${user.id}`);
 
     const friendIds = [...new Set(((acceptedFollows || []) as any[]).map((f) => f.follower_id === user.id ? f.following_id : f.follower_id))];
+    friendIds.forEach((id) => ids.add(id));
+
+    // Load profiles for all collected IDs
+    const { data: profiles } = await supabase.from('profiles').select('id,display_name').in('id', Array.from(ids));
+    const names: Record<string, string> = {};
+    (profiles || []).forEach((p: any) => { names[p.id] = p.display_name; });
+    setProfileNames(names);
+
     if (friendIds.length) {
-      const { data: friendProfiles } = await supabase.from('profiles').select('id,display_name').in('id', friendIds);
-      const friendRows = (friendProfiles || []).map((f: any) => ({ id: f.id, name: f.display_name }));
+      const friendRows = friendIds.map((id) => ({ id, name: names[id] || 'User' }));
       setFriends(friendRows);
     }
-    // Always ensure paidBy defaults to current user
+
+    // Load expense groups
+    const { data: groupRows } = await supabase
+      .from('expense_groups')
+      .select('id,name,created_by')
+      .order('created_at', { ascending: false });
+
+    if (groupRows && groupRows.length > 0) {
+      const groupIds = groupRows.map((g: any) => g.id);
+      const { data: memberRows } = await supabase
+        .from('expense_group_members')
+        .select('group_id,user_id')
+        .in('group_id', groupIds);
+
+      const groupsWithMembers: ExpenseGroup[] = groupRows.map((g: any) => ({
+        id: g.id,
+        name: g.name,
+        created_by: g.created_by,
+        members: (memberRows || []).filter((m: any) => m.group_id === g.id).map((m: any) => m.user_id),
+      }));
+      setGroups(groupsWithMembers);
+    } else {
+      setGroups([]);
+    }
+
     setNewExpense((p) => ({ ...p, paidBy: p.paidBy || user.id }));
   };
 
@@ -75,50 +118,109 @@ const ExpenseSection: React.FC = () => {
     loadData();
   }, [user]);
 
-  // Total of ALL expenses (settled + pending)
-  const totalExpense = useMemo(() => expenses.reduce((sum, exp) => sum + Number(exp.amount || 0), 0), [expenses]);
+  // Filter expenses by active group
+  const filteredExpenses = useMemo(() => {
+    if (!activeGroupId) return expenses;
+    return expenses.filter((e) => e.group_id === activeGroupId);
+  }, [expenses, activeGroupId]);
 
-  // You Owe: only PENDING expenses where someone ELSE paid and you're in split_with
+  const totalExpense = useMemo(() => filteredExpenses.reduce((sum, exp) => sum + Number(exp.amount || 0), 0), [filteredExpenses]);
+
   const youOwe = useMemo(() => {
     if (!user) return 0;
-    return expenses
+    return filteredExpenses
       .filter((e) => e.status !== 'paid' && e.paid_by !== user.id && (e.split_with || []).includes(user.id))
       .reduce((sum, e) => {
-        const splitCount = (e.split_with || []).length + 1; // payer + splitters
+        const splitCount = (e.split_with || []).length + 1;
         return sum + Number(e.amount || 0) / splitCount;
       }, 0);
-  }, [expenses, user]);
+  }, [filteredExpenses, user]);
 
-  // You're Owed: only PENDING expenses where YOU paid, excluding your own share
   const youAreOwed = useMemo(() => {
     if (!user) return 0;
-    return expenses
+    return filteredExpenses
       .filter((e) => e.status !== 'paid' && e.paid_by === user.id && (e.split_with || []).length > 0)
       .reduce((sum, e) => {
         const splitCount = (e.split_with || []).length + 1;
         const othersShare = Number(e.amount || 0) * ((e.split_with || []).length / splitCount);
         return sum + othersShare;
       }, 0);
-  }, [expenses, user]);
+  }, [filteredExpenses, user]);
 
-  // Net balance: positive = you're owed more, negative = you owe more
   const netBalance = useMemo(() => youAreOwed - youOwe, [youAreOwed, youOwe]);
 
-  // Settle an expense (mark as paid)
+  // Get active group's members as friends for "split with" and "paid by"
+  const activeGroupMembers = useMemo(() => {
+    if (!activeGroupId) return friends;
+    const group = groups.find((g) => g.id === activeGroupId);
+    if (!group) return friends;
+    return group.members
+      .filter((id) => id !== user?.id)
+      .map((id) => ({ id, name: profileNames[id] || 'User' }));
+  }, [activeGroupId, groups, friends, profileNames, user]);
+
   const handleSettle = async (expenseId: string) => {
     setSettlingId(expenseId);
-    const { error } = await supabase
-      .from('expenses')
-      .update({ status: 'paid' })
-      .eq('id', expenseId);
+    const { error } = await supabase.from('expenses').update({ status: 'paid' }).eq('id', expenseId);
     setSettlingId(null);
-
     if (error) {
       toast({ title: 'Failed to settle', description: error.message, variant: 'destructive' });
       return;
     }
     toast({ title: 'Expense settled! ✅' });
     await loadData();
+  };
+
+  const handleCreateGroup = async () => {
+    if (!user || !newGroupName.trim()) {
+      toast({ title: 'Enter a group name', variant: 'destructive' });
+      return;
+    }
+    if (newGroupMembers.length === 0) {
+      toast({ title: 'Select at least one member', variant: 'destructive' });
+      return;
+    }
+
+    setCreatingGroup(true);
+
+    // Create the group
+    const { data: groupData, error: groupErr } = await supabase
+      .from('expense_groups')
+      .insert({ name: newGroupName.trim(), created_by: user.id })
+      .select('id')
+      .single();
+
+    if (groupErr || !groupData) {
+      setCreatingGroup(false);
+      toast({ title: 'Failed to create group', description: groupErr?.message, variant: 'destructive' });
+      return;
+    }
+
+    // Add creator + selected members
+    const allMembers = [user.id, ...newGroupMembers];
+    const { error: memberErr } = await supabase
+      .from('expense_group_members')
+      .insert(allMembers.map((uid) => ({ group_id: groupData.id, user_id: uid })));
+
+    setCreatingGroup(false);
+
+    if (memberErr) {
+      toast({ title: 'Group created but failed to add members', description: memberErr.message, variant: 'destructive' });
+    } else {
+      toast({ title: `Group "${newGroupName}" created! 🎉` });
+    }
+
+    setNewGroupName('');
+    setNewGroupMembers([]);
+    setShowCreateGroup(false);
+    await loadData();
+    setActiveGroupId(groupData.id);
+  };
+
+  const toggleGroupMember = (id: string) => {
+    setNewGroupMembers((prev) =>
+      prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
+    );
   };
 
   const handleAddExpense = async () => {
@@ -136,6 +238,7 @@ const ExpenseSection: React.FC = () => {
       split_with: newExpense.splitWith,
       status: 'pending',
       payment_method: 'upi',
+      group_id: activeGroupId || null,
     });
     setSubmittingExpense(false);
 
@@ -163,37 +266,21 @@ const ExpenseSection: React.FC = () => {
   };
 
   const handleUPIPayment = () => {
-    if (!upiForm.upiId.trim()) {
-      toast({ title: 'Enter UPI ID', variant: 'destructive' });
-      return;
-    }
-
+    if (!upiForm.upiId.trim()) { toast({ title: 'Enter UPI ID', variant: 'destructive' }); return; }
     const amount = Number(upiForm.amount || 0);
-    if (!amount || amount <= 0) {
-      toast({ title: 'Enter valid amount', variant: 'destructive' });
-      return;
-    }
-
+    if (!amount || amount <= 0) { toast({ title: 'Enter valid amount', variant: 'destructive' }); return; }
     const upiUrl = `upi://pay?pa=${encodeURIComponent(upiForm.upiId)}&pn=${encodeURIComponent('TripSync Settlement')}&am=${amount}&cu=INR&tn=${encodeURIComponent(upiForm.note || 'Trip settlement')}`;
     window.location.href = upiUrl;
     setShowUPIModal(false);
-    toast({ title: `Opening ${upiForm.app}`, description: 'UPI payment request initiated on your phone.' });
+    toast({ title: `Opening ${upiForm.app}`, description: 'UPI payment request initiated.' });
   };
 
   const handleSendReminders = async () => {
     if (!user) return;
-
-    const targetIds = [...new Set(expenses.flatMap((e) => e.split_with || []).filter((id) => id !== user.id))];
-    if (!targetIds.length) {
-      toast({ title: 'No users to remind' });
-      return;
-    }
-
-    // Use edge function to send reminders (bypasses RLS for inserting notifications for other users)
+    const targetIds = [...new Set(filteredExpenses.flatMap((e) => e.split_with || []).filter((id) => id !== user.id))];
+    if (!targetIds.length) { toast({ title: 'No users to remind' }); return; }
     try {
-      const { error } = await supabase.functions.invoke('send-reminders', {
-        body: { target_ids: targetIds, message: reminderMessage },
-      });
+      const { error } = await supabase.functions.invoke('send-reminders', { body: { target_ids: targetIds, message: reminderMessage } });
       if (error) throw error;
       setShowReminder(false);
       toast({ title: 'Reminders sent 🔔' });
@@ -202,28 +289,90 @@ const ExpenseSection: React.FC = () => {
     }
   };
 
+  // When opening Add Expense, pre-select all group members for split
+  const openAddExpense = () => {
+    if (activeGroupId) {
+      const group = groups.find((g) => g.id === activeGroupId);
+      const memberIds = group ? group.members.filter((id) => id !== user?.id) : [];
+      setNewExpense({ title: '', amount: '', paidBy: user?.id || '', splitWith: memberIds });
+    } else {
+      setNewExpense({ title: '', amount: '', paidBy: user?.id || '', splitWith: [] });
+    }
+    setShowAddExpense(true);
+  };
+
   return (
     <section className="py-20 lg:py-32 bg-muted/30">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-3xl mx-auto mb-16">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-success/10 rounded-full text-success text-sm font-medium mb-6"><Wallet className="w-4 h-4" />Smart Expense Management</div>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-6">Group <span className="text-gradient">Expense Split</span></h2>
-          <p className="text-lg text-muted-foreground">Track real expenses and settle with UPI.</p>
+          <p className="text-lg text-muted-foreground">Form groups with your followers and split expenses easily.</p>
         </div>
+
+        {/* Group Selector Bar */}
+        <div className="mb-8 flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => setActiveGroupId(null)}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${!activeGroupId ? 'gradient-primary text-white shadow-glow' : 'bg-muted hover:bg-muted/80 text-foreground'}`}
+          >
+            All Expenses
+          </button>
+          {groups.map((g) => (
+            <button
+              key={g.id}
+              onClick={() => setActiveGroupId(g.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${activeGroupId === g.id ? 'gradient-primary text-white shadow-glow' : 'bg-muted hover:bg-muted/80 text-foreground'}`}
+            >
+              <UsersRound className="w-3.5 h-3.5" />
+              {g.name}
+              <span className="text-xs opacity-70">({g.members.length})</span>
+            </button>
+          ))}
+          <button
+            onClick={() => setShowCreateGroup(true)}
+            className="flex items-center gap-1 px-4 py-2 rounded-full text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-all border border-dashed border-primary/30"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            New Group
+          </button>
+        </div>
+
+        {/* Active Group Info */}
+        {activeGroupId && (
+          <div className="mb-6 p-4 travel-card bg-primary/5 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
+                <UsersRound className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">{groups.find((g) => g.id === activeGroupId)?.name}</h3>
+                <p className="text-xs text-muted-foreground">
+                  {groups.find((g) => g.id === activeGroupId)?.members.map((id) => id === user?.id ? 'You' : (profileNames[id] || 'User')).join(', ')}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs bg-muted px-3 py-1 rounded-full text-muted-foreground">
+                {groups.find((g) => g.id === activeGroupId)?.members.length} members
+              </span>
+            </div>
+          </div>
+        )}
 
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
             <div className="travel-card p-8 bg-gradient-to-br from-card to-success/5">
               <div className="flex items-center justify-between mb-6">
-                <div><h3 className="text-xl font-semibold text-foreground">Trip Expenses</h3><p className="text-muted-foreground">Shared among real users</p></div>
-                <Button onClick={() => setShowAddExpense(true)} variant="outline" size="sm" className="rounded-full"><Plus className="w-4 h-4 mr-1" />Add Expense</Button>
+                <div><h3 className="text-xl font-semibold text-foreground">{activeGroupId ? groups.find(g => g.id === activeGroupId)?.name + ' Expenses' : 'Trip Expenses'}</h3><p className="text-muted-foreground">Shared among {activeGroupId ? 'group members' : 'real users'}</p></div>
+                <Button onClick={openAddExpense} variant="outline" size="sm" className="rounded-full"><Plus className="w-4 h-4 mr-1" />Add Expense</Button>
               </div>
 
               <div className="grid md:grid-cols-4 gap-4">
                 <div className="p-6 bg-muted/50 rounded-2xl text-center"><p className="text-muted-foreground mb-1">Total Spent</p><p className="text-3xl font-bold text-foreground">₹{Math.round(totalExpense).toLocaleString()}</p></div>
                 <div className="p-6 bg-destructive/10 rounded-2xl text-center"><p className="text-muted-foreground mb-1 flex items-center justify-center gap-1"><TrendingDown className="w-3 h-3" />You Owe</p><p className="text-3xl font-bold text-destructive">₹{Math.round(youOwe).toLocaleString()}</p><p className="text-xs text-muted-foreground mt-1">pending only</p></div>
                 <div className="p-6 bg-success/10 rounded-2xl text-center"><p className="text-muted-foreground mb-1 flex items-center justify-center gap-1"><TrendingUp className="w-3 h-3" />You're Owed</p><p className="text-3xl font-bold text-success">₹{Math.round(youAreOwed).toLocaleString()}</p><p className="text-xs text-muted-foreground mt-1">pending only</p></div>
-                <div className={`p-6 rounded-2xl text-center ${netBalance >= 0 ? 'bg-success/10' : 'bg-destructive/10'}`}><p className="text-muted-foreground mb-1 flex items-center justify-center gap-1"><Scale className="w-3 h-3" />Net Balance</p><p className={`text-3xl font-bold ${netBalance >= 0 ? 'text-success' : 'text-destructive'}`}>{netBalance >= 0 ? '+' : '-'}₹{Math.abs(Math.round(netBalance)).toLocaleString()}</p><p className="text-xs text-muted-foreground mt-1">{netBalance >= 0 ? 'you\'re ahead' : 'you owe more'}</p></div>
+                <div className={`p-6 rounded-2xl text-center ${netBalance >= 0 ? 'bg-success/10' : 'bg-destructive/10'}`}><p className="text-muted-foreground mb-1 flex items-center justify-center gap-1"><Scale className="w-3 h-3" />Net Balance</p><p className={`text-3xl font-bold ${netBalance >= 0 ? 'text-success' : 'text-destructive'}`}>{netBalance >= 0 ? '+' : '-'}₹{Math.abs(Math.round(netBalance)).toLocaleString()}</p><p className="text-xs text-muted-foreground mt-1">{netBalance >= 0 ? "you're ahead" : 'you owe more'}</p></div>
               </div>
             </div>
 
@@ -239,7 +388,7 @@ const ExpenseSection: React.FC = () => {
           <div className="travel-card p-6">
             <h3 className="font-semibold text-foreground mb-4">Recent Expenses</h3>
             <div className="space-y-4">
-              {expenses.length === 0 ? <p className="text-sm text-muted-foreground">No expenses yet.</p> : expenses.map((expense) => (
+              {filteredExpenses.length === 0 ? <p className="text-sm text-muted-foreground">No expenses yet.{activeGroupId ? ' Add one for this group!' : ''}</p> : filteredExpenses.map((expense) => (
                 <div key={expense.id} className="p-4 bg-muted/50 rounded-2xl">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-3">
@@ -282,17 +431,77 @@ const ExpenseSection: React.FC = () => {
         </div>
       </div>
 
+      {/* Create Group Modal */}
+      {showCreateGroup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md bg-background rounded-3xl shadow-2xl overflow-hidden">
+            <div className="px-6 py-4 flex items-center justify-between border-b border-border">
+              <h2 className="text-lg font-bold text-foreground flex items-center gap-2"><UsersRound className="w-5 h-5 text-primary" />Create Expense Group</h2>
+              <button onClick={() => setShowCreateGroup(false)} className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Group Name</label>
+                <input
+                  type="text"
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  placeholder="e.g. Goa Trip 2025"
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Add Members (from followers)</label>
+                {friends.length === 0 ? (
+                  <p className="text-sm text-muted-foreground p-3 bg-muted/50 rounded-xl">You need accepted followers to create a group. Follow people first!</p>
+                ) : (
+                  <div className="flex gap-2 flex-wrap max-h-48 overflow-y-auto p-1">
+                    {friends.map((f) => (
+                      <button
+                        key={f.id}
+                        onClick={() => toggleGroupMember(f.id)}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all ${newGroupMembers.includes(f.id) ? 'gradient-primary text-white shadow-md' : 'bg-muted hover:bg-muted/80 text-foreground'}`}
+                      >
+                        {newGroupMembers.includes(f.id) ? <Check className="w-3.5 h-3.5" /> : <UserPlus className="w-3.5 h-3.5" />}
+                        {f.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {newGroupMembers.length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-2">{newGroupMembers.length + 1} members (including you)</p>
+                )}
+              </div>
+              <Button
+                onClick={handleCreateGroup}
+                className="w-full h-12 gradient-primary text-primary-foreground rounded-xl font-semibold"
+                disabled={creatingGroup || !newGroupName.trim() || newGroupMembers.length === 0}
+              >
+                {creatingGroup ? <Loader2 className="w-5 h-5 animate-spin" /> : <><UsersRound className="w-5 h-5 mr-2" />Create Group</>}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Expense Modal */}
       {showAddExpense && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-md bg-background rounded-3xl shadow-2xl overflow-hidden">
             <div className="px-6 py-4 flex items-center justify-between border-b border-border"><h2 className="text-lg font-bold text-foreground">Add Expense</h2><button onClick={() => setShowAddExpense(false)} className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center"><X className="w-5 h-5" /></button></div>
             <div className="p-6 space-y-4">
+              {activeGroupId && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-primary/10 rounded-xl text-sm text-primary">
+                  <UsersRound className="w-4 h-4" />
+                  Adding to: {groups.find(g => g.id === activeGroupId)?.name}
+                </div>
+              )}
               <div><label className="block text-sm font-medium text-foreground mb-2">Expense Title</label><input type="text" value={newExpense.title} onChange={(e) => setNewExpense({ ...newExpense, title: e.target.value })} placeholder="e.g. Dinner" className="input-field" /></div>
               <div><label className="block text-sm font-medium text-foreground mb-2">Amount (₹)</label><input type="number" value={newExpense.amount} onChange={(e) => setNewExpense({ ...newExpense, amount: e.target.value })} placeholder="0" className="input-field" /></div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">Paid By</label>
                 <div className="flex gap-2 flex-wrap">
-                  {[{ id: user?.id || '', name: 'You' }, ...friends].map((f) => (
+                  {[{ id: user?.id || '', name: 'You' }, ...activeGroupMembers].map((f) => (
                     <button key={f.id} onClick={() => setNewExpense({ ...newExpense, paidBy: f.id })} className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${newExpense.paidBy === f.id ? 'gradient-primary text-white' : 'bg-muted hover:bg-muted/80'}`}>{f.name}</button>
                   ))}
                 </div>
@@ -300,7 +509,7 @@ const ExpenseSection: React.FC = () => {
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">Split With</label>
                 <div className="flex gap-2 flex-wrap">
-                  {friends.map((f) => (
+                  {activeGroupMembers.map((f) => (
                     <button key={f.id} onClick={() => toggleFriend(f.id)} className={`flex items-center gap-1 px-3 py-2 rounded-full text-sm font-medium transition-all ${newExpense.splitWith.includes(f.id) ? 'gradient-primary text-white' : 'bg-muted hover:bg-muted/80'}`}><UserPlus className="w-3 h-3" />{f.name}</button>
                   ))}
                 </div>
@@ -311,6 +520,7 @@ const ExpenseSection: React.FC = () => {
         </div>
       )}
 
+      {/* UPI Modal */}
       {showUPIModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-sm bg-background rounded-3xl shadow-2xl overflow-hidden">
@@ -326,6 +536,7 @@ const ExpenseSection: React.FC = () => {
         </div>
       )}
 
+      {/* Reminder Modal */}
       {showReminder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-md bg-background rounded-3xl shadow-2xl overflow-hidden">
