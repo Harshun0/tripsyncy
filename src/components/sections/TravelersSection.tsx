@@ -200,7 +200,7 @@ const TravelersSection: React.FC = () => {
 
         <div className="grid lg:grid-cols-3 gap-8 mb-12">
           <div className="lg:col-span-2 h-80 rounded-3xl overflow-hidden relative shadow-lg cursor-pointer group" onClick={() => setShowFullMap(true)}>
-            {renderLeafletMap('100%', 5)}
+            <LeafletMap height="100%" zoom={5} id="main-map" />
             <div className="absolute top-4 right-4 z-[1000] w-10 h-10 bg-background/90 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg opacity-70 group-hover:opacity-100 transition-opacity">
               <Maximize2 className="w-5 h-5 text-foreground" />
             </div>
