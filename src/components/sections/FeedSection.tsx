@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { Heart, MessageCircle, Bookmark, Share2, MapPin, TrendingUp, UserPlus, UserCheck, Send, Copy, Facebook, Twitter, Link2, Loader2, Flag, Ban, BadgeCheck, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Heart, MessageCircle, Bookmark, Share2, MapPin, TrendingUp, UserPlus, UserCheck, Send, Copy, Facebook, Twitter, Link2, Loader2, Flag, Ban, BadgeCheck, Calendar, ChevronLeft, ChevronRight, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -48,6 +48,8 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile, onViewPost
   const sentinelRef = useRef<HTMLDivElement>(null);
   const offsetRef = useRef(0);
   const [mediaIndices, setMediaIndices] = useState<Record<string, number>>({});
+  const [acceptedFollowers, setAcceptedFollowers] = useState<{ id: string; display_name: string; avatar_url: string | null }[]>([]);
+  const [sharingWithUser, setSharingWithUser] = useState<string | null>(null);
 
   const getMediaUrls = (url: string): string[] => {
     if (!url) return [];
@@ -140,6 +142,23 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile, onViewPost
     supabase.from('blocks').select('blocked_id').eq('blocker_id', user.id).then(({ data }) => {
       setBlockedIds(new Set((data || []).map((b: any) => b.blocked_id)));
     });
+  }, [user]);
+
+  // Load accepted followers/following for share
+  useEffect(() => {
+    if (!user) return;
+    const loadFollowers = async () => {
+      const { data: followRows } = await supabase
+        .from('follows')
+        .select('follower_id, following_id')
+        .eq('status', 'accepted')
+        .or(`follower_id.eq.${user.id},following_id.eq.${user.id}`);
+      if (!followRows || followRows.length === 0) { setAcceptedFollowers([]); return; }
+      const userIds = [...new Set(followRows.map((f: any) => f.follower_id === user.id ? f.following_id : f.follower_id))];
+      const { data: profiles } = await supabase.from('profiles').select('id,display_name,avatar_url').in('id', userIds);
+      setAcceptedFollowers((profiles || []) as any[]);
+    };
+    loadFollowers();
   }, [user]);
 
   // Load trending locations
@@ -248,6 +267,60 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile, onViewPost
     setShareMenuOpen(null);
   };
 
+  const handleShareWithUser = async (post: FeedPost, targetUserId: string, targetName: string) => {
+    if (!user) return;
+    try {
+      // Find or create a conversation with this user
+      const { data: existingConvos } = await supabase
+        .from('conversation_participants')
+        .select('conversation_id')
+        .eq('user_id', user.id);
+      
+      let conversationId: string | null = null;
+      
+      if (existingConvos && existingConvos.length > 0) {
+        const convoIds = existingConvos.map((c: any) => c.conversation_id);
+        const { data: targetConvos } = await supabase
+          .from('conversation_participants')
+          .select('conversation_id')
+          .eq('user_id', targetUserId)
+          .in('conversation_id', convoIds);
+        if (targetConvos && targetConvos.length > 0) {
+          conversationId = targetConvos[0].conversation_id;
+        }
+      }
+
+      if (!conversationId) {
+        const { data: newConvo } = await supabase
+          .from('conversations')
+          .insert({ created_by: user.id })
+          .select('id')
+          .single();
+        if (newConvo) {
+          conversationId = newConvo.id;
+          await supabase.from('conversation_participants').insert([
+            { conversation_id: conversationId, user_id: user.id },
+            { conversation_id: conversationId, user_id: targetUserId },
+          ]);
+        }
+      }
+
+      if (conversationId) {
+        const shareMsg = `📸 Shared a post by ${post.userName}: "${post.caption}" ${post.image ? '\n' + post.image.split(',')[0].trim() : ''}`;
+        await supabase.from('direct_messages').insert({
+          conversation_id: conversationId,
+          sender_id: user.id,
+          content: shareMsg,
+        });
+        toast({ title: `Shared with ${targetName} 🚀` });
+      }
+    } catch {
+      toast({ title: 'Failed to share', variant: 'destructive' });
+    }
+    setSharingWithUser(null);
+    setShareMenuOpen(null);
+  };
+
   const isVideo = (url: string) => /\.(mp4|webm|mov|ogg)$/i.test(url);
 
   const visiblePosts = useMemo(() => posts.filter((p) => !blockedIds.has(p.userId)), [posts, blockedIds]);
@@ -347,7 +420,30 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile, onViewPost
                       <div className="relative" ref={shareMenuOpen === post.id ? shareRef : null}>
                         <button onClick={() => setShareMenuOpen(shareMenuOpen === post.id ? null : post.id)} className="hover:text-primary transition-colors"><Share2 className="w-6 h-6" /></button>
                         {shareMenuOpen === post.id && (
-                          <div className="absolute bottom-full left-0 mb-2 w-56 bg-background border border-border rounded-2xl shadow-xl z-50 animate-fade-in overflow-hidden p-2 space-y-1">
+                          <div className="absolute bottom-full left-0 mb-2 w-72 bg-background border border-border rounded-2xl shadow-xl z-50 animate-fade-in overflow-hidden p-2 space-y-1 max-h-80 overflow-y-auto">
+                            {/* Share with followers */}
+                            {acceptedFollowers.length > 0 && (
+                              <>
+                                <p className="px-3 py-1.5 text-xs font-semibold text-muted-foreground flex items-center gap-1.5"><Users className="w-3 h-3" />Send to</p>
+                                <div className="flex gap-2 px-2 pb-2 overflow-x-auto scrollbar-hide">
+                                  {acceptedFollowers.map(f => (
+                                    <button
+                                      key={f.id}
+                                      onClick={() => handleShareWithUser(post, f.id, f.display_name)}
+                                      className="flex flex-col items-center gap-1 min-w-[56px] p-1.5 rounded-xl hover:bg-muted transition-colors"
+                                    >
+                                      <img
+                                        src={f.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=50&h=50&fit=crop&crop=face'}
+                                        alt={f.display_name}
+                                        className="w-10 h-10 rounded-full object-cover"
+                                      />
+                                      <span className="text-[10px] text-foreground font-medium truncate w-full text-center">{f.display_name.split(' ')[0]}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                                <hr className="border-border" />
+                              </>
+                            )}
                             <button onClick={() => handleShare(post, 'whatsapp')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors"><Send className="w-4 h-4 text-green-500" />WhatsApp</button>
                             <button onClick={() => handleShare(post, 'twitter')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors"><Twitter className="w-4 h-4 text-accent" />Twitter / X</button>
                             <button onClick={() => handleShare(post, 'facebook')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors"><Facebook className="w-4 h-4 text-primary" />Facebook</button>
