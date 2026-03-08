@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import RecommendedSection from './RecommendedSection';
 
 interface TravelerProfile {
   id: string;
@@ -247,6 +248,9 @@ const TravelersSection: React.FC = () => {
           })}
         </div>
       </div>
+
+      {/* Recommended for You */}
+      <RecommendedSection />
 
       {/* Full Screen Map Modal */}
       {showFullMap && (
