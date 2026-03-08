@@ -147,6 +147,48 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, on
                   <Icon className="w-4 h-4" />{label}
                 </button>
               ))}
+              {/* Show custom interests that aren't in the preset list */}
+              {formData.interests.filter(i => !interestOptions.some(o => o.id === i)).map((custom) => (
+                <button key={custom} type="button" onClick={() => handleInterestToggle(custom)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all gradient-primary text-white"
+                >
+                  <Compass className="w-4 h-4" />{custom}
+                  <X className="w-3 h-3 ml-1" />
+                </button>
+              ))}
+            </div>
+            {/* Custom interest input */}
+            <div className="flex gap-2 mt-3">
+              <input
+                type="text"
+                placeholder="Add custom interest..."
+                className="input-field flex-1 text-sm"
+                maxLength={30}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const val = (e.target as HTMLInputElement).value.trim();
+                    if (val && !formData.interests.includes(val)) {
+                      setFormData(prev => ({ ...prev, interests: [...prev.interests, val] }));
+                      (e.target as HTMLInputElement).value = '';
+                    }
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="px-4 py-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-sm font-medium flex items-center gap-1"
+                onClick={(e) => {
+                  const input = (e.currentTarget.previousElementSibling as HTMLInputElement);
+                  const val = input.value.trim();
+                  if (val && !formData.interests.includes(val)) {
+                    setFormData(prev => ({ ...prev, interests: [...prev.interests, val] }));
+                    input.value = '';
+                  }
+                }}
+              >
+                <Plus className="w-4 h-4" />Add
+              </button>
             </div>
           </div>
 
