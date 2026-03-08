@@ -248,10 +248,32 @@ const ExpenseSection: React.FC = () => {
                       </div>
                       <div><h4 className="font-medium text-foreground text-sm">{expense.title}</h4><p className="text-xs text-muted-foreground">by {profileNames[expense.paid_by] || 'User'}</p></div>
                     </div>
+                    <span className="font-bold text-foreground">₹{Number(expense.amount).toLocaleString()}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground mb-2">
+                    Your share: ₹{Math.round(Number(expense.amount) / ((expense.split_with?.length || 0) + 1)).toLocaleString()}
+                    {user && expense.paid_by !== user.id && (expense.split_with || []).includes(user.id) && expense.status !== 'paid' && (
+                      <span className="text-destructive ml-1">(you owe this)</span>
+                    )}
+                    {user && expense.paid_by === user.id && (expense.split_with || []).length > 0 && expense.status !== 'paid' && (
+                      <span className="text-success ml-1">(others owe you ₹{Math.round(Number(expense.amount) * (expense.split_with.length / ((expense.split_with.length || 0) + 1))).toLocaleString()})</span>
+                    )}
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t border-border">
                     <div className="flex items-center gap-1 text-xs text-muted-foreground"><Users className="w-3 h-3" />Split: {(expense.split_with?.length || 0) + 1}</div>
-                    <div className="flex items-center gap-2"><span className="font-bold text-foreground">₹{Number(expense.amount).toLocaleString()}</span><span className={`text-xs px-2 py-0.5 rounded-full ${expense.status === 'paid' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>{expense.status === 'paid' ? 'Settled' : 'Pending'}</span></div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${expense.status === 'paid' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>{expense.status === 'paid' ? 'Settled' : 'Pending'}</span>
+                      {expense.status !== 'paid' && user && (expense.paid_by === user.id || expense.split_with?.includes(user.id)) && (
+                        <button
+                          onClick={() => handleSettle(expense.id)}
+                          disabled={settlingId === expense.id}
+                          className="flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-success/20 text-success hover:bg-success/30 transition-colors disabled:opacity-50"
+                        >
+                          {settlingId === expense.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                          Settle
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
