@@ -255,7 +255,7 @@ const TravelersSection: React.FC = () => {
               <h3 className="font-semibold text-foreground text-sm">Nearby Travelers Map</h3>
               <p className="text-xs text-muted-foreground">{filteredTravelers.length} travelers within {selectedRadius} km</p>
             </div>
-            {renderLeafletMap('100%', 5)}
+            <LeafletMap height="100%" zoom={5} id="fullscreen-map" />
             <div className="absolute bottom-4 left-4 right-4 z-[1000] bg-background/95 backdrop-blur-sm rounded-2xl p-4 shadow-lg">
               <div className="flex gap-3 overflow-x-auto pb-1">
                 {filteredTravelers.slice(0, 8).map((t) => (
