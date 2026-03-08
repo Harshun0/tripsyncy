@@ -218,11 +218,80 @@ export type Database = {
           },
         ]
       }
+      expense_group_members: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "expense_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_group_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expense_groups: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_groups_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expenses: {
         Row: {
           amount: number
           created_at: string
           created_by: string
+          group_id: string | null
           id: string
           paid_by: string
           payment_link: string | null
@@ -238,6 +307,7 @@ export type Database = {
           amount: number
           created_at?: string
           created_by: string
+          group_id?: string | null
           id?: string
           paid_by: string
           payment_link?: string | null
@@ -253,6 +323,7 @@ export type Database = {
           amount?: number
           created_at?: string
           created_by?: string
+          group_id?: string | null
           id?: string
           paid_by?: string
           payment_link?: string | null
@@ -270,6 +341,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "expense_groups"
             referencedColumns: ["id"]
           },
           {
