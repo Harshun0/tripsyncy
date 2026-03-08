@@ -219,10 +219,11 @@ const ExpenseSection: React.FC = () => {
                 <Button onClick={() => setShowAddExpense(true)} variant="outline" size="sm" className="rounded-full"><Plus className="w-4 h-4 mr-1" />Add Expense</Button>
               </div>
 
-              <div className="grid md:grid-cols-3 gap-4">
+              <div className="grid md:grid-cols-4 gap-4">
                 <div className="p-6 bg-muted/50 rounded-2xl text-center"><p className="text-muted-foreground mb-1">Total Spent</p><p className="text-3xl font-bold text-foreground">₹{Math.round(totalExpense).toLocaleString()}</p></div>
-                <div className="p-6 bg-destructive/10 rounded-2xl text-center"><p className="text-muted-foreground mb-1">You Owe</p><p className="text-3xl font-bold text-destructive">₹{Math.round(youOwe).toLocaleString()}</p></div>
-                <div className="p-6 bg-success/10 rounded-2xl text-center"><p className="text-muted-foreground mb-1">You're Owed</p><p className="text-3xl font-bold text-success">₹{Math.round(youAreOwed).toLocaleString()}</p></div>
+                <div className="p-6 bg-destructive/10 rounded-2xl text-center"><p className="text-muted-foreground mb-1 flex items-center justify-center gap-1"><TrendingDown className="w-3 h-3" />You Owe</p><p className="text-3xl font-bold text-destructive">₹{Math.round(youOwe).toLocaleString()}</p><p className="text-xs text-muted-foreground mt-1">pending only</p></div>
+                <div className="p-6 bg-success/10 rounded-2xl text-center"><p className="text-muted-foreground mb-1 flex items-center justify-center gap-1"><TrendingUp className="w-3 h-3" />You're Owed</p><p className="text-3xl font-bold text-success">₹{Math.round(youAreOwed).toLocaleString()}</p><p className="text-xs text-muted-foreground mt-1">pending only</p></div>
+                <div className={`p-6 rounded-2xl text-center ${netBalance >= 0 ? 'bg-success/10' : 'bg-destructive/10'}`}><p className="text-muted-foreground mb-1 flex items-center justify-center gap-1"><Scale className="w-3 h-3" />Net Balance</p><p className={`text-3xl font-bold ${netBalance >= 0 ? 'text-success' : 'text-destructive'}`}>{netBalance >= 0 ? '+' : '-'}₹{Math.abs(Math.round(netBalance)).toLocaleString()}</p><p className="text-xs text-muted-foreground mt-1">{netBalance >= 0 ? 'you\'re ahead' : 'you owe more'}</p></div>
               </div>
             </div>
 
