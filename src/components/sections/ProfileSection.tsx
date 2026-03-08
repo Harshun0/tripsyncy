@@ -284,7 +284,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
       </div>
 
       <ProfileSettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} onLogout={() => { setShowSettings(false); handleLogout(); }} />
-      <EditProfileModal isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} onSave={handleProfileSave} initialData={{ displayName, bio, location, budget, personality, interests }} />
+      <EditProfileModal isOpen={showEditProfile} onClose={() => { setShowEditProfile(false); setPendingAvatarFile(null); }} onSave={handleProfileSave} initialData={{ displayName, bio, location, budget, personality, interests }} avatarUrl={avatarUrl} onAvatarChange={(file) => setPendingAvatarFile(file)} />
 
       {showCreatePost && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
