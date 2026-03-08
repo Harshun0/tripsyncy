@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { Heart, MessageCircle, Bookmark, Share2, MapPin, TrendingUp, UserPlus, UserCheck, Send, Copy, Facebook, Twitter, Link2, Loader2, Flag, Ban, BadgeCheck, Calendar } from 'lucide-react';
+import { Heart, MessageCircle, Bookmark, Share2, MapPin, TrendingUp, UserPlus, UserCheck, Send, Copy, Facebook, Twitter, Link2, Loader2, Flag, Ban, BadgeCheck, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -46,6 +46,12 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile }) => {
   const shareRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const offsetRef = useRef(0);
+  const [mediaIndices, setMediaIndices] = useState<Record<string, number>>({});
+
+  const getMediaUrls = (url: string): string[] => {
+    if (!url) return [];
+    return url.split(',').map(u => u.trim()).filter(Boolean);
+  };
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -299,15 +305,33 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile }) => {
                   </div>
                 </div>
 
-                {post.image && (
-                  <div className="relative aspect-[16/10] bg-muted">
-                    {isVideo(post.image) ? (
-                      <video src={post.image} controls className="w-full h-full object-cover" />
-                    ) : (
-                      <img src={post.image} alt={post.caption} className="w-full h-full object-cover" loading="lazy" />
-                    )}
-                  </div>
-                )}
+                {post.image && (() => {
+                  const urls = getMediaUrls(post.image);
+                  const idx = mediaIndices[post.id] || 0;
+                  if (urls.length === 0) return null;
+                  return (
+                    <div className="relative aspect-[16/10] bg-muted group">
+                      {isVideo(urls[idx]) ? (
+                        <video src={urls[idx]} controls className="w-full h-full object-cover" />
+                      ) : (
+                        <img src={urls[idx]} alt={post.caption} className="w-full h-full object-cover" loading="lazy" />
+                      )}
+                      {urls.length > 1 && (
+                        <>
+                          <button onClick={() => setMediaIndices(prev => ({ ...prev, [post.id]: (idx - 1 + urls.length) % urls.length }))} className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-background/80 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <ChevronLeft className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => setMediaIndices(prev => ({ ...prev, [post.id]: (idx + 1) % urls.length }))} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-background/80 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
+                          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+                            {urls.map((_, i) => <span key={i} className={`w-2 h-2 rounded-full ${i === idx ? 'bg-primary' : 'bg-background/60'}`} />)}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <div className="px-6 py-4 space-y-3">
                   <div className="flex items-center justify-between">
