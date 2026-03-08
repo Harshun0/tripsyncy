@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import RecommendedSection from './RecommendedSection';
 
 interface TravelerProfile {
   id: string;
