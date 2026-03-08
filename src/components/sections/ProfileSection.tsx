@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Settings, Edit2, MapPin, BadgeCheck, Wallet, Heart, Mountain, Utensils, Compass, Sunrise, Camera, Share2, MessageCircle, LogOut, Copy, Facebook, Twitter, Send, Plus, ImagePlus, Loader2 } from 'lucide-react';
+import { Settings, Edit2, MapPin, BadgeCheck, Wallet, Heart, Mountain, Utensils, Compass, Sunrise, Camera, Share2, MessageCircle, LogOut, Copy, Facebook, Twitter, Send, Plus, ImagePlus, Loader2, Trash2, Pencil, ChevronLeft, ChevronRight, MoreVertical, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ProfileSettingsModal from '@/components/modals/ProfileSettingsModal';
 import EditProfileModal from '@/components/modals/EditProfileModal';
@@ -64,9 +64,25 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
   const [postFiles, setPostFiles] = useState<File[]>([]);
   const [creatingPost, setCreatingPost] = useState(false);
   const [locationSuggestions, setLocationSuggestions] = useState<string[]>([]);
+  const [myPosts, setMyPosts] = useState<any[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
+  const [editingPost, setEditingPost] = useState<any>(null);
+  const [editCaption, setEditCaption] = useState('');
+  const [postMenuOpen, setPostMenuOpen] = useState<string | null>(null);
+  const [mediaIndices, setMediaIndices] = useState<Record<string, number>>({});
   const shareRef = useRef<HTMLDivElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchMyPosts = async () => {
+    if (!user) return;
+    setLoadingPosts(true);
+    const { data } = await supabase.from('posts').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50);
+    setMyPosts(data || []);
+    setLoadingPosts(false);
+  };
+
+  useEffect(() => { fetchMyPosts(); }, [user]);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -193,14 +209,36 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
       setPostFiles([]);
       setLocationSuggestions([]);
       toast({ title: 'Post created ✅' });
+      fetchMyPosts();
     } catch (e) {
       toast({ title: 'Post creation failed', description: e instanceof Error ? e.message : 'Please try again', variant: 'destructive' });
     } finally {
       setCreatingPost(false);
     }
   };
+  const handleDeletePost = async (postId: string) => {
+    const { error } = await supabase.from('posts').delete().eq('id', postId);
+    if (error) { toast({ title: 'Delete failed', variant: 'destructive' }); return; }
+    toast({ title: 'Post deleted' });
+    setMyPosts(prev => prev.filter(p => p.id !== postId));
+    setPostMenuOpen(null);
+  };
 
-  return (
+  const handleEditPost = async () => {
+    if (!editingPost) return;
+    const { error } = await supabase.from('posts').update({ caption: editCaption }).eq('id', editingPost.id);
+    if (error) { toast({ title: 'Update failed', variant: 'destructive' }); return; }
+    toast({ title: 'Post updated ✅' });
+    setMyPosts(prev => prev.map(p => p.id === editingPost.id ? { ...p, caption: editCaption } : p));
+    setEditingPost(null);
+  };
+
+  const getMediaUrls = (mediaUrl: string | null): string[] => {
+    if (!mediaUrl) return [];
+    return mediaUrl.split(',').map(u => u.trim()).filter(Boolean);
+  };
+
+
     <section className="py-20 lg:py-32 bg-background">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="relative mb-12">
@@ -284,10 +322,95 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
             </div>
           </div>
         </div>
+        {/* My Posts Section */}
+        <div className="mt-12">
+          <h3 className="text-2xl font-bold text-foreground mb-6">My Posts</h3>
+          {loadingPosts ? (
+            <div className="py-10 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" /></div>
+          ) : myPosts.length === 0 ? (
+            <p className="text-muted-foreground text-center py-10">No posts yet. Create your first post!</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {myPosts.map(post => {
+                const urls = getMediaUrls(post.media_url);
+                const idx = mediaIndices[post.id] || 0;
+                return (
+                  <div key={post.id} className="travel-card overflow-hidden group">
+                    {/* Media carousel */}
+                    {urls.length > 0 && (
+                      <div className="relative aspect-square bg-muted">
+                        {urls[idx]?.match(/\.(mp4|webm|mov)$/i) ? (
+                          <video src={urls[idx]} className="w-full h-full object-cover" controls muted />
+                        ) : (
+                          <img src={urls[idx]} alt="" className="w-full h-full object-cover" />
+                        )}
+                        {urls.length > 1 && (
+                          <>
+                            <button onClick={() => setMediaIndices(prev => ({ ...prev, [post.id]: (idx - 1 + urls.length) % urls.length }))} className="absolute left-1 top-1/2 -translate-y-1/2 w-7 h-7 bg-background/80 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <ChevronLeft className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => setMediaIndices(prev => ({ ...prev, [post.id]: (idx + 1) % urls.length }))} className="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 bg-background/80 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                              {urls.map((_, i) => (
+                                <span key={i} className={`w-1.5 h-1.5 rounded-full ${i === idx ? 'bg-primary' : 'bg-muted-foreground/40'}`} />
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+                    {/* Post info */}
+                    <div className="p-3 space-y-1.5">
+                      <div className="flex items-start justify-between">
+                        <p className="text-sm text-foreground line-clamp-2 flex-1">{post.caption || 'No caption'}</p>
+                        <div className="relative">
+                          <button onClick={() => setPostMenuOpen(postMenuOpen === post.id ? null : post.id)} className="p-1 hover:bg-muted rounded-lg transition-colors">
+                            <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                          </button>
+                          {postMenuOpen === post.id && (
+                            <div className="absolute right-0 top-full mt-1 bg-background border border-border rounded-xl shadow-lg z-50 overflow-hidden min-w-[120px]">
+                              <button onClick={() => { setEditingPost(post); setEditCaption(post.caption || ''); setPostMenuOpen(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors">
+                                <Pencil className="w-3.5 h-3.5" />Edit
+                              </button>
+                              <button onClick={() => handleDeletePost(post.id)} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors">
+                                <Trash2 className="w-3.5 h-3.5" />Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {post.location && <p className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />{post.location}</p>}
+                      <p className="text-xs text-muted-foreground">{new Date(post.created_at).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       <ProfileSettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} onLogout={() => { setShowSettings(false); handleLogout(); }} />
       <EditProfileModal isOpen={showEditProfile} onClose={() => { setShowEditProfile(false); setPendingAvatarFile(null); }} onSave={handleProfileSave} initialData={{ displayName, bio, location, budget, personality, interests }} avatarUrl={avatarUrl} onAvatarChange={(file) => setPendingAvatarFile(file)} />
+
+      {/* Edit Post Modal */}
+      {editingPost && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-background rounded-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-foreground">Edit Post</h3>
+              <button onClick={() => setEditingPost(null)}><X className="w-5 h-5 text-muted-foreground" /></button>
+            </div>
+            <textarea className="input-field min-h-[110px] resize-none" value={editCaption} onChange={(e) => setEditCaption(e.target.value)} placeholder="Caption" />
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setEditingPost(null)}>Cancel</Button>
+              <Button className="flex-1 gradient-primary text-primary-foreground" onClick={handleEditPost}>Save</Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showCreatePost && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
