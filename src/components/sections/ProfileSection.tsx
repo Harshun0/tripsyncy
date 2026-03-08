@@ -306,12 +306,22 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
                 </div>
               )}
             </div>
-            <label className="w-full h-24 border border-dashed border-border rounded-xl flex items-center justify-center text-sm text-muted-foreground cursor-pointer hover:bg-muted/50 transition-colors">
-              <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => setPostFile(e.target.files?.[0] || null)} />
-              <span className="flex items-center gap-2"><ImagePlus className="w-4 h-4" />{postFile ? postFile.name : 'Upload image or video (optional)'}</span>
+            <label className="w-full min-h-[60px] border border-dashed border-border rounded-xl flex items-center justify-center text-sm text-muted-foreground cursor-pointer hover:bg-muted/50 transition-colors p-3">
+              <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={(e) => { if (e.target.files) setPostFiles(prev => [...prev, ...Array.from(e.target.files!)]); }} />
+              <span className="flex items-center gap-2"><ImagePlus className="w-4 h-4" />{postFiles.length > 0 ? `${postFiles.length} file(s) selected` : 'Upload images or videos (optional)'}</span>
             </label>
+            {postFiles.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {postFiles.map((f, i) => (
+                  <div key={i} className="flex items-center gap-1.5 bg-muted px-3 py-1.5 rounded-lg text-xs">
+                    <span className="truncate max-w-[120px]">{f.name}</span>
+                    <button type="button" onClick={() => setPostFiles(prev => prev.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-destructive">✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => { setShowCreatePost(false); setLocationSuggestions([]); }}>Cancel</Button>
+              <Button variant="outline" className="flex-1" onClick={() => { setShowCreatePost(false); setPostFiles([]); setLocationSuggestions([]); }}>Cancel</Button>
               <Button className="flex-1 gradient-primary text-primary-foreground" onClick={createPost} disabled={creatingPost}>{creatingPost ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Post'}</Button>
             </div>
           </div>
