@@ -1,28 +1,30 @@
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import FloatingMessagesButton from '@/components/layout/FloatingMessagesButton';
 import MessagesPanel from '@/components/layout/MessagesPanel';
 import HeroSection from '@/components/sections/HeroSection';
 import FeaturesSection from '@/components/sections/FeaturesSection';
-import TravelersSection from '@/components/sections/TravelersSection';
-import FeedSection from '@/components/sections/FeedSection';
-import ItinerarySection from '@/components/sections/ItinerarySection';
-import ItineraryIntroSection from '@/components/sections/ItineraryIntroSection';
-import ExpenseSection from '@/components/sections/ExpenseSection';
-import ProfileSection from '@/components/sections/ProfileSection';
-import SearchSection from '@/components/sections/SearchSection';
-import AIChatModal from '@/components/sections/AIChatModal';
 import LoginModal from '@/components/modals/LoginModal';
-import TripCreateScreen from '@/components/screens/TripCreateScreen';
-import UserProfileScreen from '@/components/screens/UserProfileScreen';
-import SavedPostsScreen from '@/components/screens/SavedPostsScreen';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Camera } from 'lucide-react';
+import { Camera, Loader2 } from 'lucide-react';
+
+// Lazy load heavy sections
+const TravelersSection = lazy(() => import('@/components/sections/TravelersSection'));
+const FeedSection = lazy(() => import('@/components/sections/FeedSection'));
+const ItinerarySection = lazy(() => import('@/components/sections/ItinerarySection'));
+const ItineraryIntroSection = lazy(() => import('@/components/sections/ItineraryIntroSection'));
+const ExpenseSection = lazy(() => import('@/components/sections/ExpenseSection'));
+const ProfileSection = lazy(() => import('@/components/sections/ProfileSection'));
+const SearchSection = lazy(() => import('@/components/sections/SearchSection'));
+const AIChatModal = lazy(() => import('@/components/sections/AIChatModal'));
+const TripCreateScreen = lazy(() => import('@/components/screens/TripCreateScreen'));
+const UserProfileScreen = lazy(() => import('@/components/screens/UserProfileScreen'));
+const SavedPostsScreen = lazy(() => import('@/components/screens/SavedPostsScreen'));
 
 const Index: React.FC = () => {
   const { user, loading, profile, signOut, updateProfile } = useAuth();
