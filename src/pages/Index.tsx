@@ -179,8 +179,10 @@ const Index: React.FC = () => {
             <ItineraryIntroSection onNavigate={handleNavigate} isLoggedIn={isLoggedIn} />
           </>
         );
+      case 'post-detail':
+        return viewPostId ? <div className="pt-20"><PostDetailScreen postId={viewPostId} onBack={() => handleNavigate('home')} onViewUserProfile={handleViewUserProfile} /></div> : null;
       case 'home':
-        return <div className="pt-20"><FeedSection onViewUserProfile={handleViewUserProfile} /></div>;
+        return <div className="pt-20"><FeedSection onViewUserProfile={handleViewUserProfile} onViewPost={handleViewPost} /></div>;
       case 'explore':
         return <div className="pt-20"><TravelersSection /></div>;
       case 'itinerary':
