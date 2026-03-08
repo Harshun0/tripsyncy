@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useCallback, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useCallback, useState, memo } from 'react';
 import { MapPin, Users, BadgeCheck, Heart, MessageCircle, UserPlus, UserCheck, X, Maximize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';

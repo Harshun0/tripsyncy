@@ -263,7 +263,7 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile }) => {
               <article key={post.id} className="bg-card rounded-3xl overflow-hidden shadow-lg hover:shadow-xl transition-shadow">
                 <div className="flex items-center justify-between px-6 py-4">
                   <div className="flex items-center gap-3 cursor-pointer" onClick={() => onViewUserProfile?.(post.userId)}>
-                    <img src={post.userAvatar} alt={post.userName} className="w-12 h-12 rounded-full object-cover" />
+                    <img src={post.userAvatar} alt={post.userName} className="w-12 h-12 rounded-full object-cover" loading="lazy" decoding="async" />
                     <div>
                       <div className="flex items-center gap-1.5">
                         <h3 className="font-semibold text-foreground hover:text-primary transition-colors">{post.userName}</h3>
