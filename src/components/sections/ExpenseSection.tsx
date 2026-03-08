@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Wallet, ArrowRight, Check, Clock, Send, Users, CreditCard, X, UserPlus, Loader2 } from 'lucide-react';
+import { Plus, Wallet, ArrowRight, Check, Clock, Send, Users, CreditCard, X, UserPlus, Loader2, CheckCircle2, TrendingUp, TrendingDown, Scale } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -26,11 +26,12 @@ const ExpenseSection: React.FC = () => {
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showReminder, setShowReminder] = useState(false);
   const [showUPIModal, setShowUPIModal] = useState(false);
+  const [showSettleModal, setShowSettleModal] = useState(false);
+  const [settlingId, setSettlingId] = useState<string | null>(null);
   const [reminderMessage, setReminderMessage] = useState('Please settle pending trip expenses.');
   const [newExpense, setNewExpense] = useState({ title: '', amount: '', paidBy: user?.id || '', splitWith: [] as string[] });
   const [upiForm, setUpiForm] = useState({ app: 'Google Pay', upiId: '', amount: '', note: 'Trip expense settlement' });
   const [submittingExpense, setSubmittingExpense] = useState(false);
-
   const loadData = async () => {
     if (!user) return;
 
