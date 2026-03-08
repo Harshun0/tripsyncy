@@ -48,6 +48,8 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile, onViewPost
   const sentinelRef = useRef<HTMLDivElement>(null);
   const offsetRef = useRef(0);
   const [mediaIndices, setMediaIndices] = useState<Record<string, number>>({});
+  const [acceptedFollowers, setAcceptedFollowers] = useState<{ id: string; display_name: string; avatar_url: string | null }[]>([]);
+  const [sharingWithUser, setSharingWithUser] = useState<string | null>(null);
 
   const getMediaUrls = (url: string): string[] => {
     if (!url) return [];
