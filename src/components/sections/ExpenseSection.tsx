@@ -75,21 +75,51 @@ const ExpenseSection: React.FC = () => {
     loadData();
   }, [user]);
 
+  // Total of ALL expenses (settled + pending)
   const totalExpense = useMemo(() => expenses.reduce((sum, exp) => sum + Number(exp.amount || 0), 0), [expenses]);
 
+  // You Owe: only PENDING expenses where someone ELSE paid and you're in split_with
   const youOwe = useMemo(() => {
     if (!user) return 0;
     return expenses
-      .filter((e) => e.paid_by !== user.id && (e.split_with || []).includes(user.id))
-      .reduce((sum, e) => sum + Number(e.amount || 0) / (Number((e.split_with || []).length) + 1), 0);
+      .filter((e) => e.status !== 'paid' && e.paid_by !== user.id && (e.split_with || []).includes(user.id))
+      .reduce((sum, e) => {
+        const splitCount = (e.split_with || []).length + 1; // payer + splitters
+        return sum + Number(e.amount || 0) / splitCount;
+      }, 0);
   }, [expenses, user]);
 
+  // You're Owed: only PENDING expenses where YOU paid, excluding your own share
   const youAreOwed = useMemo(() => {
     if (!user) return 0;
     return expenses
-      .filter((e) => e.paid_by === user.id)
-      .reduce((sum, e) => sum + Number(e.amount || 0) - (Number(e.amount || 0) / (Number((e.split_with || []).length) + 1)), 0);
+      .filter((e) => e.status !== 'paid' && e.paid_by === user.id && (e.split_with || []).length > 0)
+      .reduce((sum, e) => {
+        const splitCount = (e.split_with || []).length + 1;
+        const othersShare = Number(e.amount || 0) * ((e.split_with || []).length / splitCount);
+        return sum + othersShare;
+      }, 0);
   }, [expenses, user]);
+
+  // Net balance: positive = you're owed more, negative = you owe more
+  const netBalance = useMemo(() => youAreOwed - youOwe, [youAreOwed, youOwe]);
+
+  // Settle an expense (mark as paid)
+  const handleSettle = async (expenseId: string) => {
+    setSettlingId(expenseId);
+    const { error } = await supabase
+      .from('expenses')
+      .update({ status: 'paid' })
+      .eq('id', expenseId);
+    setSettlingId(null);
+
+    if (error) {
+      toast({ title: 'Failed to settle', description: error.message, variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Expense settled! ✅' });
+    await loadData();
+  };
 
   const handleAddExpense = async () => {
     if (!user || !newExpense.title.trim() || !newExpense.amount || !newExpense.paidBy) {
