@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Camera, MapPin, Wallet, Heart, Mountain, Utensils, Compass, Sunrise, Save, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
@@ -17,22 +17,27 @@ interface EditProfileModalProps {
   onClose: () => void;
   onSave: (data: ProfileData) => void;
   initialData?: ProfileData;
+  avatarUrl?: string;
+  onAvatarChange?: (file: File) => void;
 }
 
-const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, onSave, initialData }) => {
+const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, onSave, initialData, avatarUrl, onAvatarChange }) => {
   const [formData, setFormData] = useState<ProfileData>({
     displayName: 'Traveler',
-    bio: 'Exploring the world one trip at a time ✈️ | Budget traveler | Coffee lover ☕',
-    location: 'Mumbai, India',
+    bio: '',
+    location: '',
     budget: 'Mid-Range',
     personality: 'Ambivert',
-    interests: ['Adventure', 'Food', 'Culture', 'Nature', 'Photography'],
+    interests: [],
   });
+  const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (initialData) {
       setFormData(initialData);
     }
+    setPreviewAvatar(null);
   }, [initialData, isOpen]);
 
   const interestOptions = [
@@ -53,8 +58,12 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, on
     }));
   };
 
-  const handleChangeAvatar = () => {
-    toast({ title: 'Profile photo updated! 📸', description: 'Your new avatar will be visible to other travelers.' });
+  const handleAvatarFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPreviewAvatar(URL.createObjectURL(file));
+    onAvatarChange?.(file);
+    toast({ title: 'Profile photo will be saved with your changes 📸' });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -68,6 +77,8 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, on
 
   if (!isOpen) return null;
 
+  const displayedAvatar = previewAvatar || avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={onClose}>
       <div className="w-full max-w-lg bg-background rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -80,17 +91,16 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, on
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           <div className="flex justify-center">
-            <div className="relative">
+            <div className="relative group cursor-pointer" onClick={() => avatarInputRef.current?.click()}>
               <img
-                src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face"
+                src={displayedAvatar}
                 alt="Profile"
                 className="w-28 h-28 rounded-full object-cover border-4 border-primary/20"
               />
-              <button type="button" onClick={handleChangeAvatar}
-                className="absolute bottom-0 right-0 w-10 h-10 gradient-primary rounded-full flex items-center justify-center shadow-lg"
-              >
-                <Camera className="w-5 h-5 text-white" />
-              </button>
+              <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                <Camera className="w-6 h-6 text-white" />
+              </div>
+              <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarFile} />
             </div>
           </div>
 
@@ -147,7 +157,6 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, on
                   <Icon className="w-4 h-4" />{label}
                 </button>
               ))}
-              {/* Show custom interests that aren't in the preset list */}
               {formData.interests.filter(i => !interestOptions.some(o => o.id === i)).map((custom) => (
                 <button key={custom} type="button" onClick={() => handleInterestToggle(custom)}
                   className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all gradient-primary text-white"
@@ -157,7 +166,6 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, on
                 </button>
               ))}
             </div>
-            {/* Custom interest input */}
             <div className="flex gap-2 mt-3">
               <input
                 type="text"
