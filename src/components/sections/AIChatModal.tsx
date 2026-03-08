@@ -80,12 +80,19 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
 
   const handleSend = async (forcedText?: string) => {
     const text = (forcedText ?? inputValue).trim();
-    if (!text || isLoading || !user) return;
+    if (!text || isLoading) return;
+    if (!user) {
+      toast({ title: 'Please log in first', variant: 'destructive' });
+      return;
+    }
 
     let convoId = activeConvoId;
     if (!convoId) {
       const { data } = await supabase.from('chat_conversations').insert({ user_id: user.id, title: text.slice(0, 50) }).select().single();
-      if (!data) return;
+      if (!data) {
+        toast({ title: 'Failed to create chat', variant: 'destructive' });
+        return;
+      }
       convoId = (data as any).id;
       setActiveConvoId(convoId);
     }
@@ -97,9 +104,9 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
     setInputValue('');
     setIsLoading(true);
 
-    await supabase.from('chat_messages').insert({ conversation_id: convoId, role: 'user', content: text });
-
     try {
+      await supabase.from('chat_messages').insert({ conversation_id: convoId, role: 'user', content: text });
+
       const history = [...messages, userMsg]
         .filter((m) => !m.isLoading)
         .slice(-12)
@@ -111,17 +118,21 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
 
       if (error) throw error;
 
-      const aiContent = data?.content || "I'm here to help!";
+      const aiContent = data?.content || data?.data || "I'm here to help with your travel plans!";
 
       await supabase.from('chat_messages').insert({ conversation_id: convoId, role: 'assistant', content: aiContent });
-      await supabase.from('chat_conversations').update({ title: messages.length === 0 ? text.slice(0, 50) : undefined }).eq('id', convoId);
+      if (messages.length === 0) {
+        await supabase.from('chat_conversations').update({ title: text.slice(0, 50) }).eq('id', convoId);
+      }
 
       await loadConversations();
       setMessages((prev) => prev.filter((m) => !m.isLoading).concat({ id: `${Date.now()}-ai`, role: 'assistant', content: aiContent }));
-    } catch (error) {
+    } catch (err: any) {
+      console.error('AI chat error:', err);
       setMessages((prev) => prev.filter((m) => !m.isLoading));
-      toast({ title: 'AI Response Failed', description: error instanceof Error ? error.message : 'Try again.', variant: 'destructive' });
-      setMessages((prev) => [...prev, { id: `${Date.now()}-error`, role: 'assistant', content: 'Sorry, please try again.' }]);
+      const errMsg = err?.message || err?.context?.message || 'Something went wrong. Please try again.';
+      toast({ title: 'AI Response Failed', description: errMsg, variant: 'destructive' });
+      setMessages((prev) => [...prev, { id: `${Date.now()}-error`, role: 'assistant', content: `Sorry, I encountered an error: ${errMsg}. Please try again.` }]);
     } finally {
       setIsLoading(false);
     }
