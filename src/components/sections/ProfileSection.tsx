@@ -336,7 +336,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
                 const urls = getMediaUrls(post.media_url);
                 const idx = mediaIndices[post.id] || 0;
                 return (
-                  <div key={post.id} className="travel-card overflow-hidden group">
+                  <div key={post.id} className="travel-card overflow-visible group relative">
                     {/* Media carousel */}
                     {urls.length > 0 && (
                       <div className="relative aspect-square bg-muted">
