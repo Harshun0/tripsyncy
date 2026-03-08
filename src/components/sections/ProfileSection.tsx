@@ -272,7 +272,18 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
         <div className="mt-20 grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
             <div>
-              <h1 className="text-3xl font-bold text-foreground">{displayName}</h1>
+              <div className="flex items-center gap-3">
+                <h1 className="text-3xl font-bold text-foreground">{displayName}</h1>
+                {profile?.profile_visibility === 'private' || profile?.profile_visibility === 'friends' ? (
+                  <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-muted text-xs font-medium text-muted-foreground">
+                    <Lock className="w-3 h-3" /> Private
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 text-xs font-medium text-primary">
+                    <Globe className="w-3 h-3" /> Public
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-2 text-muted-foreground mt-2"><MapPin className="w-4 h-4" /><span>{location}</span></div>
               <p className="text-foreground mt-4">{bio}</p>
             </div>
