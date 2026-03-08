@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Wallet, ArrowRight, Check, Clock, Send, Users, CreditCard, X, UserPlus, Loader2, CheckCircle2, TrendingUp, TrendingDown, Scale, UsersRound, ChevronDown } from 'lucide-react';
+import { Plus, Wallet, ArrowRight, Check, Clock, Send, Users, CreditCard, X, UserPlus, Loader2, CheckCircle2, TrendingUp, TrendingDown, Scale, UsersRound, Pencil, Trash2, UserMinus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -22,7 +22,7 @@ interface ExpenseGroup {
   id: string;
   name: string;
   created_by: string;
-  members: string[]; // user ids
+  members: string[];
 }
 
 const ExpenseSection: React.FC = () => {
@@ -37,6 +37,8 @@ const ExpenseSection: React.FC = () => {
   const [showReminder, setShowReminder] = useState(false);
   const [showUPIModal, setShowUPIModal] = useState(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [showEditGroup, setShowEditGroup] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [settlingId, setSettlingId] = useState<string | null>(null);
   const [reminderMessage, setReminderMessage] = useState('Please settle pending trip expenses.');
   const [newExpense, setNewExpense] = useState({ title: '', amount: '', paidBy: user?.id || '', splitWith: [] as string[] });
@@ -45,11 +47,14 @@ const ExpenseSection: React.FC = () => {
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupMembers, setNewGroupMembers] = useState<string[]>([]);
   const [creatingGroup, setCreatingGroup] = useState(false);
+  const [editGroupName, setEditGroupName] = useState('');
+  const [editGroupMembers, setEditGroupMembers] = useState<string[]>([]);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingGroup, setDeletingGroup] = useState(false);
 
   const loadData = async () => {
     if (!user) return;
 
-    // Load expenses
     const { data: expenseRows } = await supabase
       .from('expenses')
       .select('*')
@@ -59,14 +64,12 @@ const ExpenseSection: React.FC = () => {
     const expenseData = (expenseRows || []) as ExpenseRow[];
     setExpenses(expenseData);
 
-    // Collect all user IDs
     const ids = new Set<string>([user.id]);
     expenseData.forEach((e) => {
       ids.add(e.paid_by);
       (e.split_with || []).forEach((id) => ids.add(id));
     });
 
-    // Load friends (accepted follows)
     const { data: acceptedFollows } = await supabase
       .from('follows')
       .select('follower_id,following_id,status')
@@ -76,18 +79,15 @@ const ExpenseSection: React.FC = () => {
     const friendIds = [...new Set(((acceptedFollows || []) as any[]).map((f) => f.follower_id === user.id ? f.following_id : f.follower_id))];
     friendIds.forEach((id) => ids.add(id));
 
-    // Load profiles for all collected IDs
     const { data: profiles } = await supabase.from('profiles').select('id,display_name').in('id', Array.from(ids));
     const names: Record<string, string> = {};
     (profiles || []).forEach((p: any) => { names[p.id] = p.display_name; });
     setProfileNames(names);
 
     if (friendIds.length) {
-      const friendRows = friendIds.map((id) => ({ id, name: names[id] || 'User' }));
-      setFriends(friendRows);
+      setFriends(friendIds.map((id) => ({ id, name: names[id] || 'User' })));
     }
 
-    // Load expense groups
     const { data: groupRows } = await supabase
       .from('expense_groups')
       .select('id,name,created_by')
@@ -100,13 +100,12 @@ const ExpenseSection: React.FC = () => {
         .select('group_id,user_id')
         .in('group_id', groupIds);
 
-      const groupsWithMembers: ExpenseGroup[] = groupRows.map((g: any) => ({
+      setGroups(groupRows.map((g: any) => ({
         id: g.id,
         name: g.name,
         created_by: g.created_by,
         members: (memberRows || []).filter((m: any) => m.group_id === g.id).map((m: any) => m.user_id),
-      }));
-      setGroups(groupsWithMembers);
+      })));
     } else {
       setGroups([]);
     }
@@ -114,11 +113,11 @@ const ExpenseSection: React.FC = () => {
     setNewExpense((p) => ({ ...p, paidBy: p.paidBy || user.id }));
   };
 
-  useEffect(() => {
-    loadData();
-  }, [user]);
+  useEffect(() => { loadData(); }, [user]);
 
-  // Filter expenses by active group
+  const activeGroup = useMemo(() => groups.find((g) => g.id === activeGroupId), [groups, activeGroupId]);
+  const isGroupOwner = activeGroup?.created_by === user?.id;
+
   const filteredExpenses = useMemo(() => {
     if (!activeGroupId) return expenses;
     return expenses.filter((e) => e.group_id === activeGroupId);
@@ -130,10 +129,7 @@ const ExpenseSection: React.FC = () => {
     if (!user) return 0;
     return filteredExpenses
       .filter((e) => e.status !== 'paid' && e.paid_by !== user.id && (e.split_with || []).includes(user.id))
-      .reduce((sum, e) => {
-        const splitCount = (e.split_with || []).length + 1;
-        return sum + Number(e.amount || 0) / splitCount;
-      }, 0);
+      .reduce((sum, e) => sum + Number(e.amount || 0) / ((e.split_with || []).length + 1), 0);
   }, [filteredExpenses, user]);
 
   const youAreOwed = useMemo(() => {
@@ -142,135 +138,142 @@ const ExpenseSection: React.FC = () => {
       .filter((e) => e.status !== 'paid' && e.paid_by === user.id && (e.split_with || []).length > 0)
       .reduce((sum, e) => {
         const splitCount = (e.split_with || []).length + 1;
-        const othersShare = Number(e.amount || 0) * ((e.split_with || []).length / splitCount);
-        return sum + othersShare;
+        return sum + Number(e.amount || 0) * ((e.split_with || []).length / splitCount);
       }, 0);
   }, [filteredExpenses, user]);
 
   const netBalance = useMemo(() => youAreOwed - youOwe, [youAreOwed, youOwe]);
 
-  // Get active group's members as friends for "split with" and "paid by"
   const activeGroupMembers = useMemo(() => {
-    if (!activeGroupId) return friends;
-    const group = groups.find((g) => g.id === activeGroupId);
-    if (!group) return friends;
-    return group.members
+    if (!activeGroupId || !activeGroup) return friends;
+    return activeGroup.members
       .filter((id) => id !== user?.id)
       .map((id) => ({ id, name: profileNames[id] || 'User' }));
-  }, [activeGroupId, groups, friends, profileNames, user]);
+  }, [activeGroupId, activeGroup, friends, profileNames, user]);
+
+  // --- Handlers ---
 
   const handleSettle = async (expenseId: string) => {
     setSettlingId(expenseId);
     const { error } = await supabase.from('expenses').update({ status: 'paid' }).eq('id', expenseId);
     setSettlingId(null);
-    if (error) {
-      toast({ title: 'Failed to settle', description: error.message, variant: 'destructive' });
-      return;
-    }
+    if (error) { toast({ title: 'Failed to settle', description: error.message, variant: 'destructive' }); return; }
     toast({ title: 'Expense settled! ✅' });
     await loadData();
   };
 
   const handleCreateGroup = async () => {
-    if (!user || !newGroupName.trim()) {
-      toast({ title: 'Enter a group name', variant: 'destructive' });
-      return;
-    }
-    if (newGroupMembers.length === 0) {
-      toast({ title: 'Select at least one member', variant: 'destructive' });
-      return;
-    }
-
+    if (!user || !newGroupName.trim()) { toast({ title: 'Enter a group name', variant: 'destructive' }); return; }
+    if (newGroupMembers.length === 0) { toast({ title: 'Select at least one member', variant: 'destructive' }); return; }
     setCreatingGroup(true);
-
-    // Create the group
     const { data: groupData, error: groupErr } = await supabase
       .from('expense_groups')
       .insert({ name: newGroupName.trim(), created_by: user.id })
       .select('id')
       .single();
-
-    if (groupErr || !groupData) {
-      setCreatingGroup(false);
-      toast({ title: 'Failed to create group', description: groupErr?.message, variant: 'destructive' });
-      return;
-    }
-
-    // Add creator + selected members
-    const allMembers = [user.id, ...newGroupMembers];
+    if (groupErr || !groupData) { setCreatingGroup(false); toast({ title: 'Failed to create group', description: groupErr?.message, variant: 'destructive' }); return; }
     const { error: memberErr } = await supabase
       .from('expense_group_members')
-      .insert(allMembers.map((uid) => ({ group_id: groupData.id, user_id: uid })));
-
+      .insert([user.id, ...newGroupMembers].map((uid) => ({ group_id: groupData.id, user_id: uid })));
     setCreatingGroup(false);
-
-    if (memberErr) {
-      toast({ title: 'Group created but failed to add members', description: memberErr.message, variant: 'destructive' });
-    } else {
-      toast({ title: `Group "${newGroupName}" created! 🎉` });
-    }
-
-    setNewGroupName('');
-    setNewGroupMembers([]);
-    setShowCreateGroup(false);
+    if (memberErr) { toast({ title: 'Group created but failed to add members', description: memberErr.message, variant: 'destructive' }); }
+    else { toast({ title: `Group "${newGroupName}" created! 🎉` }); }
+    setNewGroupName(''); setNewGroupMembers([]); setShowCreateGroup(false);
     await loadData();
     setActiveGroupId(groupData.id);
   };
 
-  const toggleGroupMember = (id: string) => {
-    setNewGroupMembers((prev) =>
-      prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
-    );
+  const openEditGroup = () => {
+    if (!activeGroup) return;
+    setEditGroupName(activeGroup.name);
+    setEditGroupMembers(activeGroup.members.filter((id) => id !== user?.id));
+    setShowEditGroup(true);
   };
 
-  const handleAddExpense = async () => {
-    if (!user || !newExpense.title.trim() || !newExpense.amount || !newExpense.paidBy) {
-      toast({ title: 'Please fill all required fields', variant: 'destructive' });
-      return;
+  const handleSaveEditGroup = async () => {
+    if (!user || !activeGroup) return;
+    if (!editGroupName.trim()) { toast({ title: 'Enter a group name', variant: 'destructive' }); return; }
+    setSavingEdit(true);
+
+    // Update name
+    if (editGroupName.trim() !== activeGroup.name) {
+      const { error } = await supabase.from('expense_groups').update({ name: editGroupName.trim() }).eq('id', activeGroup.id);
+      if (error) { setSavingEdit(false); toast({ title: 'Failed to update name', description: error.message, variant: 'destructive' }); return; }
     }
 
+    // Sync members: figure out adds and removes
+    const currentMembers = activeGroup.members.filter((id) => id !== user.id);
+    const toAdd = editGroupMembers.filter((id) => !currentMembers.includes(id));
+    const toRemove = currentMembers.filter((id) => !editGroupMembers.includes(id));
+
+    if (toRemove.length > 0) {
+      const { error } = await supabase
+        .from('expense_group_members')
+        .delete()
+        .eq('group_id', activeGroup.id)
+        .in('user_id', toRemove);
+      if (error) { toast({ title: 'Failed to remove members', description: error.message, variant: 'destructive' }); }
+    }
+
+    if (toAdd.length > 0) {
+      const { error } = await supabase
+        .from('expense_group_members')
+        .insert(toAdd.map((uid) => ({ group_id: activeGroup.id, user_id: uid })));
+      if (error) { toast({ title: 'Failed to add members', description: error.message, variant: 'destructive' }); }
+    }
+
+    setSavingEdit(false);
+    setShowEditGroup(false);
+    toast({ title: 'Group updated! ✏️' });
+    await loadData();
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!activeGroup) return;
+    setDeletingGroup(true);
+    const { error } = await supabase.from('expense_groups').delete().eq('id', activeGroup.id);
+    setDeletingGroup(false);
+    if (error) { toast({ title: 'Failed to delete group', description: error.message, variant: 'destructive' }); return; }
+    setShowDeleteConfirm(false);
+    setActiveGroupId(null);
+    toast({ title: 'Group deleted 🗑️' });
+    await loadData();
+  };
+
+  const toggleGroupMember = (id: string) => setNewGroupMembers((prev) => prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]);
+  const toggleEditMember = (id: string) => setEditGroupMembers((prev) => prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]);
+
+  const handleAddExpense = async () => {
+    if (!user || !newExpense.title.trim() || !newExpense.amount || !newExpense.paidBy) { toast({ title: 'Please fill all required fields', variant: 'destructive' }); return; }
     setSubmittingExpense(true);
     const { error } = await supabase.from('expenses').insert({
-      created_by: user.id,
-      title: newExpense.title,
-      amount: Number(newExpense.amount),
-      paid_by: newExpense.paidBy,
-      split_with: newExpense.splitWith,
-      status: 'pending',
-      payment_method: 'upi',
-      group_id: activeGroupId || null,
+      created_by: user.id, title: newExpense.title, amount: Number(newExpense.amount),
+      paid_by: newExpense.paidBy, split_with: newExpense.splitWith, status: 'pending',
+      payment_method: 'upi', group_id: activeGroupId || null,
     });
     setSubmittingExpense(false);
-
-    if (error) {
-      toast({ title: 'Expense creation failed', description: error.message, variant: 'destructive' });
-      return;
-    }
-
+    if (error) { toast({ title: 'Expense creation failed', description: error.message, variant: 'destructive' }); return; }
     setNewExpense({ title: '', amount: '', paidBy: user.id, splitWith: [] });
     setShowAddExpense(false);
     toast({ title: 'Expense added! 💰' });
     await loadData();
   };
 
-  const toggleFriend = (id: string) => {
-    setNewExpense((prev) => ({
-      ...prev,
-      splitWith: prev.splitWith.includes(id) ? prev.splitWith.filter((f) => f !== id) : [...prev.splitWith, id],
-    }));
+  const toggleFriend = (id: string) => setNewExpense((prev) => ({ ...prev, splitWith: prev.splitWith.includes(id) ? prev.splitWith.filter((f) => f !== id) : [...prev.splitWith, id] }));
+
+  const openAddExpense = () => {
+    const memberIds = activeGroup ? activeGroup.members.filter((id) => id !== user?.id) : [];
+    setNewExpense({ title: '', amount: '', paidBy: user?.id || '', splitWith: memberIds });
+    setShowAddExpense(true);
   };
 
-  const handlePayUPI = () => {
-    setUpiForm((prev) => ({ ...prev, amount: Math.max(1, Math.round(youOwe)).toString() }));
-    setShowUPIModal(true);
-  };
+  const handlePayUPI = () => { setUpiForm((prev) => ({ ...prev, amount: Math.max(1, Math.round(youOwe)).toString() })); setShowUPIModal(true); };
 
   const handleUPIPayment = () => {
     if (!upiForm.upiId.trim()) { toast({ title: 'Enter UPI ID', variant: 'destructive' }); return; }
     const amount = Number(upiForm.amount || 0);
     if (!amount || amount <= 0) { toast({ title: 'Enter valid amount', variant: 'destructive' }); return; }
-    const upiUrl = `upi://pay?pa=${encodeURIComponent(upiForm.upiId)}&pn=${encodeURIComponent('TripSync Settlement')}&am=${amount}&cu=INR&tn=${encodeURIComponent(upiForm.note || 'Trip settlement')}`;
-    window.location.href = upiUrl;
+    window.location.href = `upi://pay?pa=${encodeURIComponent(upiForm.upiId)}&pn=${encodeURIComponent('TripSync Settlement')}&am=${amount}&cu=INR&tn=${encodeURIComponent(upiForm.note || 'Trip settlement')}`;
     setShowUPIModal(false);
     toast({ title: `Opening ${upiForm.app}`, description: 'UPI payment request initiated.' });
   };
@@ -284,21 +287,7 @@ const ExpenseSection: React.FC = () => {
       if (error) throw error;
       setShowReminder(false);
       toast({ title: 'Reminders sent 🔔' });
-    } catch (err: any) {
-      toast({ title: 'Reminder failed', description: err?.message || 'Try again', variant: 'destructive' });
-    }
-  };
-
-  // When opening Add Expense, pre-select all group members for split
-  const openAddExpense = () => {
-    if (activeGroupId) {
-      const group = groups.find((g) => g.id === activeGroupId);
-      const memberIds = group ? group.members.filter((id) => id !== user?.id) : [];
-      setNewExpense({ title: '', amount: '', paidBy: user?.id || '', splitWith: memberIds });
-    } else {
-      setNewExpense({ title: '', amount: '', paidBy: user?.id || '', splitWith: [] });
-    }
-    setShowAddExpense(true);
+    } catch (err: any) { toast({ title: 'Reminder failed', description: err?.message || 'Try again', variant: 'destructive' }); }
   };
 
   return (
@@ -310,52 +299,37 @@ const ExpenseSection: React.FC = () => {
           <p className="text-lg text-muted-foreground">Form groups with your followers and split expenses easily.</p>
         </div>
 
-        {/* Group Selector Bar */}
+        {/* Group Selector */}
         <div className="mb-8 flex flex-wrap items-center gap-3">
-          <button
-            onClick={() => setActiveGroupId(null)}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${!activeGroupId ? 'gradient-primary text-white shadow-glow' : 'bg-muted hover:bg-muted/80 text-foreground'}`}
-          >
-            All Expenses
-          </button>
+          <button onClick={() => setActiveGroupId(null)} className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${!activeGroupId ? 'gradient-primary text-white shadow-glow' : 'bg-muted hover:bg-muted/80 text-foreground'}`}>All Expenses</button>
           {groups.map((g) => (
-            <button
-              key={g.id}
-              onClick={() => setActiveGroupId(g.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${activeGroupId === g.id ? 'gradient-primary text-white shadow-glow' : 'bg-muted hover:bg-muted/80 text-foreground'}`}
-            >
-              <UsersRound className="w-3.5 h-3.5" />
-              {g.name}
-              <span className="text-xs opacity-70">({g.members.length})</span>
+            <button key={g.id} onClick={() => setActiveGroupId(g.id)} className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${activeGroupId === g.id ? 'gradient-primary text-white shadow-glow' : 'bg-muted hover:bg-muted/80 text-foreground'}`}>
+              <UsersRound className="w-3.5 h-3.5" />{g.name}<span className="text-xs opacity-70">({g.members.length})</span>
             </button>
           ))}
-          <button
-            onClick={() => setShowCreateGroup(true)}
-            className="flex items-center gap-1 px-4 py-2 rounded-full text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-all border border-dashed border-primary/30"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            New Group
+          <button onClick={() => setShowCreateGroup(true)} className="flex items-center gap-1 px-4 py-2 rounded-full text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-all border border-dashed border-primary/30">
+            <Plus className="w-3.5 h-3.5" />New Group
           </button>
         </div>
 
-        {/* Active Group Info */}
-        {activeGroupId && (
+        {/* Active Group Info with Edit/Delete */}
+        {activeGroupId && activeGroup && (
           <div className="mb-6 p-4 travel-card bg-primary/5 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
-                <UsersRound className="w-5 h-5 text-white" />
-              </div>
+              <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center"><UsersRound className="w-5 h-5 text-white" /></div>
               <div>
-                <h3 className="font-semibold text-foreground">{groups.find((g) => g.id === activeGroupId)?.name}</h3>
-                <p className="text-xs text-muted-foreground">
-                  {groups.find((g) => g.id === activeGroupId)?.members.map((id) => id === user?.id ? 'You' : (profileNames[id] || 'User')).join(', ')}
-                </p>
+                <h3 className="font-semibold text-foreground">{activeGroup.name}</h3>
+                <p className="text-xs text-muted-foreground">{activeGroup.members.map((id) => id === user?.id ? 'You' : (profileNames[id] || 'User')).join(', ')}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs bg-muted px-3 py-1 rounded-full text-muted-foreground">
-                {groups.find((g) => g.id === activeGroupId)?.members.length} members
-              </span>
+              <span className="text-xs bg-muted px-3 py-1 rounded-full text-muted-foreground">{activeGroup.members.length} members</span>
+              {isGroupOwner && (
+                <>
+                  <button onClick={openEditGroup} className="w-8 h-8 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center transition-colors" title="Edit Group"><Pencil className="w-4 h-4 text-foreground" /></button>
+                  <button onClick={() => setShowDeleteConfirm(true)} className="w-8 h-8 rounded-full bg-destructive/10 hover:bg-destructive/20 flex items-center justify-center transition-colors" title="Delete Group"><Trash2 className="w-4 h-4 text-destructive" /></button>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -364,10 +338,9 @@ const ExpenseSection: React.FC = () => {
           <div className="lg:col-span-2 space-y-8">
             <div className="travel-card p-8 bg-gradient-to-br from-card to-success/5">
               <div className="flex items-center justify-between mb-6">
-                <div><h3 className="text-xl font-semibold text-foreground">{activeGroupId ? groups.find(g => g.id === activeGroupId)?.name + ' Expenses' : 'Trip Expenses'}</h3><p className="text-muted-foreground">Shared among {activeGroupId ? 'group members' : 'real users'}</p></div>
+                <div><h3 className="text-xl font-semibold text-foreground">{activeGroup ? activeGroup.name + ' Expenses' : 'Trip Expenses'}</h3><p className="text-muted-foreground">Shared among {activeGroupId ? 'group members' : 'real users'}</p></div>
                 <Button onClick={openAddExpense} variant="outline" size="sm" className="rounded-full"><Plus className="w-4 h-4 mr-1" />Add Expense</Button>
               </div>
-
               <div className="grid md:grid-cols-4 gap-4">
                 <div className="p-6 bg-muted/50 rounded-2xl text-center"><p className="text-muted-foreground mb-1">Total Spent</p><p className="text-3xl font-bold text-foreground">₹{Math.round(totalExpense).toLocaleString()}</p></div>
                 <div className="p-6 bg-destructive/10 rounded-2xl text-center"><p className="text-muted-foreground mb-1 flex items-center justify-center gap-1"><TrendingDown className="w-3 h-3" />You Owe</p><p className="text-3xl font-bold text-destructive">₹{Math.round(youOwe).toLocaleString()}</p><p className="text-xs text-muted-foreground mt-1">pending only</p></div>
@@ -401,25 +374,16 @@ const ExpenseSection: React.FC = () => {
                   </div>
                   <div className="text-xs text-muted-foreground mb-2">
                     Your share: ₹{Math.round(Number(expense.amount) / ((expense.split_with?.length || 0) + 1)).toLocaleString()}
-                    {user && expense.paid_by !== user.id && (expense.split_with || []).includes(user.id) && expense.status !== 'paid' && (
-                      <span className="text-destructive ml-1">(you owe this)</span>
-                    )}
-                    {user && expense.paid_by === user.id && (expense.split_with || []).length > 0 && expense.status !== 'paid' && (
-                      <span className="text-success ml-1">(others owe you ₹{Math.round(Number(expense.amount) * (expense.split_with.length / ((expense.split_with.length || 0) + 1))).toLocaleString()})</span>
-                    )}
+                    {user && expense.paid_by !== user.id && (expense.split_with || []).includes(user.id) && expense.status !== 'paid' && <span className="text-destructive ml-1">(you owe this)</span>}
+                    {user && expense.paid_by === user.id && (expense.split_with || []).length > 0 && expense.status !== 'paid' && <span className="text-success ml-1">(others owe you ₹{Math.round(Number(expense.amount) * (expense.split_with.length / ((expense.split_with.length || 0) + 1))).toLocaleString()})</span>}
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t border-border">
                     <div className="flex items-center gap-1 text-xs text-muted-foreground"><Users className="w-3 h-3" />Split: {(expense.split_with?.length || 0) + 1}</div>
                     <div className="flex items-center gap-2">
                       <span className={`text-xs px-2 py-0.5 rounded-full ${expense.status === 'paid' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>{expense.status === 'paid' ? 'Settled' : 'Pending'}</span>
                       {expense.status !== 'paid' && user && (expense.paid_by === user.id || expense.split_with?.includes(user.id)) && (
-                        <button
-                          onClick={() => handleSettle(expense.id)}
-                          disabled={settlingId === expense.id}
-                          className="flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-success/20 text-success hover:bg-success/30 transition-colors disabled:opacity-50"
-                        >
-                          {settlingId === expense.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
-                          Settle
+                        <button onClick={() => handleSettle(expense.id)} disabled={settlingId === expense.id} className="flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-success/20 text-success hover:bg-success/30 transition-colors disabled:opacity-50">
+                          {settlingId === expense.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}Settle
                         </button>
                       )}
                     </div>
@@ -440,44 +404,70 @@ const ExpenseSection: React.FC = () => {
               <button onClick={() => setShowCreateGroup(false)} className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-6 space-y-5">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Group Name</label>
-                <input
-                  type="text"
-                  value={newGroupName}
-                  onChange={(e) => setNewGroupName(e.target.value)}
-                  placeholder="e.g. Goa Trip 2025"
-                  className="input-field"
-                />
-              </div>
+              <div><label className="block text-sm font-medium text-foreground mb-2">Group Name</label><input type="text" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} placeholder="e.g. Goa Trip 2025" className="input-field" /></div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">Add Members (from followers)</label>
-                {friends.length === 0 ? (
-                  <p className="text-sm text-muted-foreground p-3 bg-muted/50 rounded-xl">You need accepted followers to create a group. Follow people first!</p>
-                ) : (
+                {friends.length === 0 ? <p className="text-sm text-muted-foreground p-3 bg-muted/50 rounded-xl">You need accepted followers to create a group.</p> : (
                   <div className="flex gap-2 flex-wrap max-h-48 overflow-y-auto p-1">
                     {friends.map((f) => (
-                      <button
-                        key={f.id}
-                        onClick={() => toggleGroupMember(f.id)}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all ${newGroupMembers.includes(f.id) ? 'gradient-primary text-white shadow-md' : 'bg-muted hover:bg-muted/80 text-foreground'}`}
-                      >
-                        {newGroupMembers.includes(f.id) ? <Check className="w-3.5 h-3.5" /> : <UserPlus className="w-3.5 h-3.5" />}
-                        {f.name}
+                      <button key={f.id} onClick={() => toggleGroupMember(f.id)} className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all ${newGroupMembers.includes(f.id) ? 'gradient-primary text-white shadow-md' : 'bg-muted hover:bg-muted/80 text-foreground'}`}>
+                        {newGroupMembers.includes(f.id) ? <Check className="w-3.5 h-3.5" /> : <UserPlus className="w-3.5 h-3.5" />}{f.name}
                       </button>
                     ))}
                   </div>
                 )}
-                {newGroupMembers.length > 0 && (
-                  <p className="text-xs text-muted-foreground mt-2">{newGroupMembers.length + 1} members (including you)</p>
-                )}
+                {newGroupMembers.length > 0 && <p className="text-xs text-muted-foreground mt-2">{newGroupMembers.length + 1} members (including you)</p>}
               </div>
-              <Button
-                onClick={handleCreateGroup}
-                className="w-full h-12 gradient-primary text-primary-foreground rounded-xl font-semibold"
-                disabled={creatingGroup || !newGroupName.trim() || newGroupMembers.length === 0}
-              >
+              <Button onClick={handleCreateGroup} className="w-full h-12 gradient-primary text-primary-foreground rounded-xl font-semibold" disabled={creatingGroup || !newGroupName.trim() || newGroupMembers.length === 0}>
                 {creatingGroup ? <Loader2 className="w-5 h-5 animate-spin" /> : <><UsersRound className="w-5 h-5 mr-2" />Create Group</>}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Group Modal */}
+      {showEditGroup && activeGroup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md bg-background rounded-3xl shadow-2xl overflow-hidden">
+            <div className="px-6 py-4 flex items-center justify-between border-b border-border">
+              <h2 className="text-lg font-bold text-foreground flex items-center gap-2"><Pencil className="w-5 h-5 text-primary" />Edit Group</h2>
+              <button onClick={() => setShowEditGroup(false)} className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-5">
+              <div><label className="block text-sm font-medium text-foreground mb-2">Group Name</label><input type="text" value={editGroupName} onChange={(e) => setEditGroupName(e.target.value)} className="input-field" /></div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Members</label>
+                <div className="flex gap-2 flex-wrap max-h-48 overflow-y-auto p-1">
+                  {friends.map((f) => (
+                    <button key={f.id} onClick={() => toggleEditMember(f.id)} className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all ${editGroupMembers.includes(f.id) ? 'gradient-primary text-white shadow-md' : 'bg-muted hover:bg-muted/80 text-foreground'}`}>
+                      {editGroupMembers.includes(f.id) ? <UserMinus className="w-3.5 h-3.5" /> : <UserPlus className="w-3.5 h-3.5" />}{f.name}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">{editGroupMembers.length + 1} members (including you)</p>
+              </div>
+              <Button onClick={handleSaveEditGroup} className="w-full h-12 gradient-primary text-primary-foreground rounded-xl font-semibold" disabled={savingEdit || !editGroupName.trim()}>
+                {savingEdit ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Check className="w-5 h-5 mr-2" />Save Changes</>}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Group Confirm */}
+      {showDeleteConfirm && activeGroup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-sm bg-background rounded-3xl shadow-2xl overflow-hidden p-6 space-y-4">
+            <div className="text-center">
+              <div className="w-14 h-14 mx-auto rounded-full bg-destructive/10 flex items-center justify-center mb-3"><Trash2 className="w-7 h-7 text-destructive" /></div>
+              <h3 className="text-lg font-bold text-foreground">Delete "{activeGroup.name}"?</h3>
+              <p className="text-sm text-muted-foreground mt-1">This will remove the group. Expenses linked to it will remain but won't be grouped.</p>
+            </div>
+            <div className="flex gap-3">
+              <Button onClick={() => setShowDeleteConfirm(false)} variant="outline" className="flex-1 rounded-xl">Cancel</Button>
+              <Button onClick={handleDeleteGroup} className="flex-1 rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={deletingGroup}>
+                {deletingGroup ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Delete'}
               </Button>
             </div>
           </div>
@@ -490,11 +480,8 @@ const ExpenseSection: React.FC = () => {
           <div className="w-full max-w-md bg-background rounded-3xl shadow-2xl overflow-hidden">
             <div className="px-6 py-4 flex items-center justify-between border-b border-border"><h2 className="text-lg font-bold text-foreground">Add Expense</h2><button onClick={() => setShowAddExpense(false)} className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center"><X className="w-5 h-5" /></button></div>
             <div className="p-6 space-y-4">
-              {activeGroupId && (
-                <div className="flex items-center gap-2 px-3 py-2 bg-primary/10 rounded-xl text-sm text-primary">
-                  <UsersRound className="w-4 h-4" />
-                  Adding to: {groups.find(g => g.id === activeGroupId)?.name}
-                </div>
+              {activeGroupId && activeGroup && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-primary/10 rounded-xl text-sm text-primary"><UsersRound className="w-4 h-4" />Adding to: {activeGroup.name}</div>
               )}
               <div><label className="block text-sm font-medium text-foreground mb-2">Expense Title</label><input type="text" value={newExpense.title} onChange={(e) => setNewExpense({ ...newExpense, title: e.target.value })} placeholder="e.g. Dinner" className="input-field" /></div>
               <div><label className="block text-sm font-medium text-foreground mb-2">Amount (₹)</label><input type="number" value={newExpense.amount} onChange={(e) => setNewExpense({ ...newExpense, amount: e.target.value })} placeholder="0" className="input-field" /></div>
@@ -507,7 +494,7 @@ const ExpenseSection: React.FC = () => {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Split With</label>
+                <label className="block text-sm font-medium text-foreground mb-2">Split With {activeGroupId && <span className="text-xs text-muted-foreground">(group members pre-selected)</span>}</label>
                 <div className="flex gap-2 flex-wrap">
                   {activeGroupMembers.map((f) => (
                     <button key={f.id} onClick={() => toggleFriend(f.id)} className={`flex items-center gap-1 px-3 py-2 rounded-full text-sm font-medium transition-all ${newExpense.splitWith.includes(f.id) ? 'gradient-primary text-white' : 'bg-muted hover:bg-muted/80'}`}><UserPlus className="w-3 h-3" />{f.name}</button>
