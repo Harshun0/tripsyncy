@@ -99,9 +99,10 @@ const Index: React.FC = () => {
 
   const uploadOnboardingFile = async (file: File, type: 'avatar' | 'cover') => {
     if (!user) return null;
-    const ext = file.name.split('.').pop() || 'jpg';
+    const compressed = await compressImage(file);
+    const ext = compressed.name.split('.').pop() || 'jpg';
     const path = `${user.id}/${type}-${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from('profile-media').upload(path, file, { cacheControl: '3600', upsert: true });
+    const { error } = await supabase.storage.from('profile-media').upload(path, compressed, { cacheControl: '3600', upsert: true });
     if (error) return null;
     return supabase.storage.from('profile-media').getPublicUrl(path).data.publicUrl;
   };
