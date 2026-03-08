@@ -27,6 +27,7 @@ const AIChatModal = lazy(() => import('@/components/sections/AIChatModal'));
 const TripCreateScreen = lazy(() => import('@/components/screens/TripCreateScreen'));
 const UserProfileScreen = lazy(() => import('@/components/screens/UserProfileScreen'));
 const SavedPostsScreen = lazy(() => import('@/components/screens/SavedPostsScreen'));
+const PostDetailScreen = lazy(() => import('@/components/screens/PostDetailScreen'));
 
 const SectionLoader = () => (
   <div className="flex items-center justify-center py-20">
@@ -44,6 +45,7 @@ const Index: React.FC = () => {
   const [showMessagesPanel, setShowMessagesPanel] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [viewUserId, setViewUserId] = useState<string | null>(null);
+  const [viewPostId, setViewPostId] = useState<string | null>(null);
 
   const [onboarding, setOnboarding] = useState({
     display_name: '',
@@ -156,6 +158,12 @@ const Index: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleViewPost = (postId: string) => {
+    setViewPostId(postId);
+    setActiveSection('post-detail');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const renderContent = () => {
     if (activeSection === 'user-profile' && viewUserId) {
       return <div className="pt-20"><UserProfileScreen userId={viewUserId} onBack={() => handleNavigate('home')} onOpenMessages={() => setShowMessagesPanel(true)} /></div>;
@@ -171,8 +179,10 @@ const Index: React.FC = () => {
             <ItineraryIntroSection onNavigate={handleNavigate} isLoggedIn={isLoggedIn} />
           </>
         );
+      case 'post-detail':
+        return viewPostId ? <div className="pt-20"><PostDetailScreen postId={viewPostId} onBack={() => handleNavigate('home')} onViewUserProfile={handleViewUserProfile} /></div> : null;
       case 'home':
-        return <div className="pt-20"><FeedSection onViewUserProfile={handleViewUserProfile} /></div>;
+        return <div className="pt-20"><FeedSection onViewUserProfile={handleViewUserProfile} onViewPost={handleViewPost} /></div>;
       case 'explore':
         return <div className="pt-20"><TravelersSection /></div>;
       case 'itinerary':

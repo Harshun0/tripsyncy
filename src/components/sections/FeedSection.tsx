@@ -25,11 +25,12 @@ interface FeedPost {
 
 interface FeedSectionProps {
   onViewUserProfile?: (userId: string) => void;
+  onViewPost?: (postId: string) => void;
 }
 
 const PAGE_SIZE = 10;
 
-const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile }) => {
+const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile, onViewPost }) => {
   const { user } = useAuth();
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -310,9 +311,9 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile }) => {
                   const idx = mediaIndices[post.id] || 0;
                   if (urls.length === 0) return null;
                   return (
-                    <div className="relative aspect-[16/10] bg-muted group">
+                    <div className="relative aspect-[16/10] bg-muted group cursor-pointer" onClick={() => onViewPost?.(post.id)}>
                       {isVideo(urls[idx]) ? (
-                        <video src={urls[idx]} controls className="w-full h-full object-cover" />
+                        <video src={urls[idx]} controls className="w-full h-full object-cover" onClick={e => e.stopPropagation()} />
                       ) : (
                         <img src={urls[idx]} alt={post.caption} className="w-full h-full object-cover" loading="lazy" />
                       )}
