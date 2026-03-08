@@ -158,6 +158,12 @@ const Index: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleViewPost = (postId: string) => {
+    setViewPostId(postId);
+    setActiveSection('post-detail');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const renderContent = () => {
     if (activeSection === 'user-profile' && viewUserId) {
       return <div className="pt-20"><UserProfileScreen userId={viewUserId} onBack={() => handleNavigate('home')} onOpenMessages={() => setShowMessagesPanel(true)} /></div>;
