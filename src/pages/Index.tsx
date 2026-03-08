@@ -45,6 +45,7 @@ const Index: React.FC = () => {
   const [showMessagesPanel, setShowMessagesPanel] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [viewUserId, setViewUserId] = useState<string | null>(null);
+  const [viewPostId, setViewPostId] = useState<string | null>(null);
 
   const [onboarding, setOnboarding] = useState({
     display_name: '',
