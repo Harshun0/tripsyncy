@@ -223,14 +223,14 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
           </div>
 
           <div className="p-6 bg-card border-t border-border">
-            <div className="flex items-center gap-3">
+            <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-3">
               <div className="flex-1">
-                <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} placeholder="Ask TripSync AI anything..." className="input-field h-12" disabled={isLoading} />
+                <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Ask TripSync AI anything..." className="input-field h-12" disabled={isLoading} autoFocus />
               </div>
-              <Button onClick={() => handleSend()} disabled={!inputValue.trim() || isLoading} className="w-12 h-12 p-0 rounded-full gradient-primary shadow-glow">
+              <Button type="submit" disabled={!inputValue.trim() || isLoading} className="w-12 h-12 p-0 rounded-full gradient-primary shadow-glow">
                 {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
               </Button>
-            </div>
+            </form>
           </div>
         </div>
       </div>
