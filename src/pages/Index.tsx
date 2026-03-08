@@ -1,22 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, lazy, Suspense, useCallback } from 'react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import FloatingMessagesButton from '@/components/layout/FloatingMessagesButton';
-import MessagesPanel from '@/components/layout/MessagesPanel';
-import HeroSection from '@/components/sections/HeroSection';
-import FeaturesSection from '@/components/sections/FeaturesSection';
 import LoginModal from '@/components/modals/LoginModal';
-import TravelersSection from '@/components/sections/TravelersSection';
-import FeedSection from '@/components/sections/FeedSection';
-import ItinerarySection from '@/components/sections/ItinerarySection';
-import ItineraryIntroSection from '@/components/sections/ItineraryIntroSection';
-import ExpenseSection from '@/components/sections/ExpenseSection';
-import ProfileSection from '@/components/sections/ProfileSection';
-import SearchSection from '@/components/sections/SearchSection';
-import AIChatModal from '@/components/sections/AIChatModal';
-import TripCreateScreen from '@/components/screens/TripCreateScreen';
-import UserProfileScreen from '@/components/screens/UserProfileScreen';
-import SavedPostsScreen from '@/components/screens/SavedPostsScreen';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
@@ -24,6 +9,29 @@ import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { compressImage } from '@/lib/imageCompression';
 import { Camera, Loader2 } from 'lucide-react';
+
+// Lazy load heavy sections — only loaded when navigated to
+const FloatingMessagesButton = lazy(() => import('@/components/layout/FloatingMessagesButton'));
+const MessagesPanel = lazy(() => import('@/components/layout/MessagesPanel'));
+const HeroSection = lazy(() => import('@/components/sections/HeroSection'));
+const FeaturesSection = lazy(() => import('@/components/sections/FeaturesSection'));
+const TravelersSection = lazy(() => import('@/components/sections/TravelersSection'));
+const FeedSection = lazy(() => import('@/components/sections/FeedSection'));
+const ItinerarySection = lazy(() => import('@/components/sections/ItinerarySection'));
+const ItineraryIntroSection = lazy(() => import('@/components/sections/ItineraryIntroSection'));
+const ExpenseSection = lazy(() => import('@/components/sections/ExpenseSection'));
+const ProfileSection = lazy(() => import('@/components/sections/ProfileSection'));
+const SearchSection = lazy(() => import('@/components/sections/SearchSection'));
+const AIChatModal = lazy(() => import('@/components/sections/AIChatModal'));
+const TripCreateScreen = lazy(() => import('@/components/screens/TripCreateScreen'));
+const UserProfileScreen = lazy(() => import('@/components/screens/UserProfileScreen'));
+const SavedPostsScreen = lazy(() => import('@/components/screens/SavedPostsScreen'));
+
+const SectionLoader = () => (
+  <div className="flex items-center justify-center py-20">
+    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+  </div>
+);
 
 const Index: React.FC = () => {
   const { user, loading, profile, signOut, updateProfile } = useAuth();
@@ -204,18 +212,20 @@ const Index: React.FC = () => {
     <div className="min-h-screen bg-background">
       <Header activeSection={activeSection} onNavigate={handleNavigate} isLoggedIn={isLoggedIn} onLogin={handleLogin} onLogout={handleLogout} />
       <main>
-        {renderContent()}
+        <Suspense fallback={<SectionLoader />}>
+          {renderContent()}
+        </Suspense>
       </main>
       <Footer />
 
       {isLoggedIn && (
-        <>
+        <Suspense fallback={null}>
           <FloatingMessagesButton onClick={() => setShowMessagesPanel(!showMessagesPanel)} isOpen={showMessagesPanel} unreadCount={0} />
           <MessagesPanel isOpen={showMessagesPanel} onClose={() => setShowMessagesPanel(false)} />
-        </>
+        </Suspense>
       )}
 
-      {showAIChat && <AIChatModal isOpen={showAIChat} onClose={() => setShowAIChat(false)} />}
+      {showAIChat && <Suspense fallback={null}><AIChatModal isOpen={showAIChat} onClose={() => setShowAIChat(false)} /></Suspense>}
       <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} onComplete={handleLoginComplete} />
 
       {showOnboarding && isLoggedIn && (
