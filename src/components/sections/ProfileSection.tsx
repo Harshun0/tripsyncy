@@ -70,8 +70,19 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
   const [editCaption, setEditCaption] = useState('');
   const [postMenuOpen, setPostMenuOpen] = useState<string | null>(null);
   const [mediaIndices, setMediaIndices] = useState<Record<string, number>>({});
+  const shareRef = useRef<HTMLDivElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchMyPosts = async () => {
+    if (!user) return;
+    setLoadingPosts(true);
+    const { data } = await supabase.from('posts').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50);
+    setMyPosts(data || []);
+    setLoadingPosts(false);
+  };
+
+  useEffect(() => { fetchMyPosts(); }, [user]);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
