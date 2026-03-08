@@ -173,21 +173,24 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
     if (!user || !postCaption.trim()) { toast({ title: 'Caption is required', variant: 'destructive' }); return; }
     setCreatingPost(true);
     try {
-      let mediaUrl: string | null = null;
-      if (postFile) {
-        const compressed = await compressImage(postFile);
-        const ext = compressed.name.split('.').pop() || 'jpg';
-        const path = `${user.id}/${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabase.storage.from('post-media').upload(path, compressed, { upsert: true });
+      // Upload all selected media files
+      const mediaUrls: string[] = [];
+      for (const file of postFiles) {
+        const processed = file.type.startsWith('image/') ? await compressImage(file) : file;
+        const ext = processed.name.split('.').pop() || 'jpg';
+        const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from('post-media').upload(path, processed, { upsert: true });
         if (uploadError) throw uploadError;
-        mediaUrl = supabase.storage.from('post-media').getPublicUrl(path).data.publicUrl;
+        mediaUrls.push(supabase.storage.from('post-media').getPublicUrl(path).data.publicUrl);
       }
+      // Store first URL in media_url (DB column), comma-join all for multiple
+      const mediaUrl = mediaUrls.length > 0 ? mediaUrls.join(',') : null;
       const { error } = await supabase.from('posts').insert({ user_id: user.id, caption: postCaption, location: postLocation || null, media_url: mediaUrl, is_public: true });
       if (error) throw error;
       setShowCreatePost(false);
       setPostCaption('');
       setPostLocation('');
-      setPostFile(null);
+      setPostFiles([]);
       setLocationSuggestions([]);
       toast({ title: 'Post created ✅' });
     } catch (e) {
