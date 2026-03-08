@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Wallet, ArrowRight, Check, Clock, Send, Users, CreditCard, X, UserPlus, Loader2 } from 'lucide-react';
+import { Plus, Wallet, ArrowRight, Check, Clock, Send, Users, CreditCard, X, UserPlus, Loader2, CheckCircle2, TrendingUp, TrendingDown, Scale } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -26,11 +26,12 @@ const ExpenseSection: React.FC = () => {
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showReminder, setShowReminder] = useState(false);
   const [showUPIModal, setShowUPIModal] = useState(false);
+  const [showSettleModal, setShowSettleModal] = useState(false);
+  const [settlingId, setSettlingId] = useState<string | null>(null);
   const [reminderMessage, setReminderMessage] = useState('Please settle pending trip expenses.');
   const [newExpense, setNewExpense] = useState({ title: '', amount: '', paidBy: user?.id || '', splitWith: [] as string[] });
   const [upiForm, setUpiForm] = useState({ app: 'Google Pay', upiId: '', amount: '', note: 'Trip expense settlement' });
   const [submittingExpense, setSubmittingExpense] = useState(false);
-
   const loadData = async () => {
     if (!user) return;
 
@@ -74,21 +75,51 @@ const ExpenseSection: React.FC = () => {
     loadData();
   }, [user]);
 
+  // Total of ALL expenses (settled + pending)
   const totalExpense = useMemo(() => expenses.reduce((sum, exp) => sum + Number(exp.amount || 0), 0), [expenses]);
 
+  // You Owe: only PENDING expenses where someone ELSE paid and you're in split_with
   const youOwe = useMemo(() => {
     if (!user) return 0;
     return expenses
-      .filter((e) => e.paid_by !== user.id && (e.split_with || []).includes(user.id))
-      .reduce((sum, e) => sum + Number(e.amount || 0) / (Number((e.split_with || []).length) + 1), 0);
+      .filter((e) => e.status !== 'paid' && e.paid_by !== user.id && (e.split_with || []).includes(user.id))
+      .reduce((sum, e) => {
+        const splitCount = (e.split_with || []).length + 1; // payer + splitters
+        return sum + Number(e.amount || 0) / splitCount;
+      }, 0);
   }, [expenses, user]);
 
+  // You're Owed: only PENDING expenses where YOU paid, excluding your own share
   const youAreOwed = useMemo(() => {
     if (!user) return 0;
     return expenses
-      .filter((e) => e.paid_by === user.id)
-      .reduce((sum, e) => sum + Number(e.amount || 0) - (Number(e.amount || 0) / (Number((e.split_with || []).length) + 1)), 0);
+      .filter((e) => e.status !== 'paid' && e.paid_by === user.id && (e.split_with || []).length > 0)
+      .reduce((sum, e) => {
+        const splitCount = (e.split_with || []).length + 1;
+        const othersShare = Number(e.amount || 0) * ((e.split_with || []).length / splitCount);
+        return sum + othersShare;
+      }, 0);
   }, [expenses, user]);
+
+  // Net balance: positive = you're owed more, negative = you owe more
+  const netBalance = useMemo(() => youAreOwed - youOwe, [youAreOwed, youOwe]);
+
+  // Settle an expense (mark as paid)
+  const handleSettle = async (expenseId: string) => {
+    setSettlingId(expenseId);
+    const { error } = await supabase
+      .from('expenses')
+      .update({ status: 'paid' })
+      .eq('id', expenseId);
+    setSettlingId(null);
+
+    if (error) {
+      toast({ title: 'Failed to settle', description: error.message, variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Expense settled! ✅' });
+    await loadData();
+  };
 
   const handleAddExpense = async () => {
     if (!user || !newExpense.title.trim() || !newExpense.amount || !newExpense.paidBy) {
@@ -188,10 +219,11 @@ const ExpenseSection: React.FC = () => {
                 <Button onClick={() => setShowAddExpense(true)} variant="outline" size="sm" className="rounded-full"><Plus className="w-4 h-4 mr-1" />Add Expense</Button>
               </div>
 
-              <div className="grid md:grid-cols-3 gap-4">
+              <div className="grid md:grid-cols-4 gap-4">
                 <div className="p-6 bg-muted/50 rounded-2xl text-center"><p className="text-muted-foreground mb-1">Total Spent</p><p className="text-3xl font-bold text-foreground">₹{Math.round(totalExpense).toLocaleString()}</p></div>
-                <div className="p-6 bg-destructive/10 rounded-2xl text-center"><p className="text-muted-foreground mb-1">You Owe</p><p className="text-3xl font-bold text-destructive">₹{Math.round(youOwe).toLocaleString()}</p></div>
-                <div className="p-6 bg-success/10 rounded-2xl text-center"><p className="text-muted-foreground mb-1">You're Owed</p><p className="text-3xl font-bold text-success">₹{Math.round(youAreOwed).toLocaleString()}</p></div>
+                <div className="p-6 bg-destructive/10 rounded-2xl text-center"><p className="text-muted-foreground mb-1 flex items-center justify-center gap-1"><TrendingDown className="w-3 h-3" />You Owe</p><p className="text-3xl font-bold text-destructive">₹{Math.round(youOwe).toLocaleString()}</p><p className="text-xs text-muted-foreground mt-1">pending only</p></div>
+                <div className="p-6 bg-success/10 rounded-2xl text-center"><p className="text-muted-foreground mb-1 flex items-center justify-center gap-1"><TrendingUp className="w-3 h-3" />You're Owed</p><p className="text-3xl font-bold text-success">₹{Math.round(youAreOwed).toLocaleString()}</p><p className="text-xs text-muted-foreground mt-1">pending only</p></div>
+                <div className={`p-6 rounded-2xl text-center ${netBalance >= 0 ? 'bg-success/10' : 'bg-destructive/10'}`}><p className="text-muted-foreground mb-1 flex items-center justify-center gap-1"><Scale className="w-3 h-3" />Net Balance</p><p className={`text-3xl font-bold ${netBalance >= 0 ? 'text-success' : 'text-destructive'}`}>{netBalance >= 0 ? '+' : '-'}₹{Math.abs(Math.round(netBalance)).toLocaleString()}</p><p className="text-xs text-muted-foreground mt-1">{netBalance >= 0 ? 'you\'re ahead' : 'you owe more'}</p></div>
               </div>
             </div>
 
@@ -216,10 +248,32 @@ const ExpenseSection: React.FC = () => {
                       </div>
                       <div><h4 className="font-medium text-foreground text-sm">{expense.title}</h4><p className="text-xs text-muted-foreground">by {profileNames[expense.paid_by] || 'User'}</p></div>
                     </div>
+                    <span className="font-bold text-foreground">₹{Number(expense.amount).toLocaleString()}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground mb-2">
+                    Your share: ₹{Math.round(Number(expense.amount) / ((expense.split_with?.length || 0) + 1)).toLocaleString()}
+                    {user && expense.paid_by !== user.id && (expense.split_with || []).includes(user.id) && expense.status !== 'paid' && (
+                      <span className="text-destructive ml-1">(you owe this)</span>
+                    )}
+                    {user && expense.paid_by === user.id && (expense.split_with || []).length > 0 && expense.status !== 'paid' && (
+                      <span className="text-success ml-1">(others owe you ₹{Math.round(Number(expense.amount) * (expense.split_with.length / ((expense.split_with.length || 0) + 1))).toLocaleString()})</span>
+                    )}
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t border-border">
                     <div className="flex items-center gap-1 text-xs text-muted-foreground"><Users className="w-3 h-3" />Split: {(expense.split_with?.length || 0) + 1}</div>
-                    <div className="flex items-center gap-2"><span className="font-bold text-foreground">₹{Number(expense.amount).toLocaleString()}</span><span className={`text-xs px-2 py-0.5 rounded-full ${expense.status === 'paid' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>{expense.status === 'paid' ? 'Settled' : 'Pending'}</span></div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${expense.status === 'paid' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>{expense.status === 'paid' ? 'Settled' : 'Pending'}</span>
+                      {expense.status !== 'paid' && user && (expense.paid_by === user.id || expense.split_with?.includes(user.id)) && (
+                        <button
+                          onClick={() => handleSettle(expense.id)}
+                          disabled={settlingId === expense.id}
+                          className="flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-success/20 text-success hover:bg-success/30 transition-colors disabled:opacity-50"
+                        >
+                          {settlingId === expense.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                          Settle
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
