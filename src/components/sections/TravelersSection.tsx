@@ -249,6 +249,9 @@ const TravelersSection: React.FC = () => {
         </div>
       </div>
 
+      {/* Recommended for You */}
+      <RecommendedSection />
+
       {/* Full Screen Map Modal */}
       {showFullMap && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-all duration-300 animate-in fade-in" onClick={() => setShowFullMap(false)}>
