@@ -247,10 +247,10 @@ const TravelersSection: React.FC = () => {
             );
           })}
         </div>
-      </div>
 
-      {/* Recommended for You */}
-      <RecommendedSection />
+        {/* Recommended for You */}
+        <RecommendedSection />
+      </div>
 
       {/* Full Screen Map Modal */}
       {showFullMap && (
