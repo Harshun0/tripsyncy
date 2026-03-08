@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Camera, MapPin, Wallet, Heart, Mountain, Utensils, Compass, Sunrise, Save } from 'lucide-react';
+import { X, Camera, MapPin, Wallet, Heart, Mountain, Utensils, Compass, Sunrise, Save, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 
