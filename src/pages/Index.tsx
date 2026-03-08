@@ -225,7 +225,7 @@ const Index: React.FC = () => {
         </Suspense>
       )}
 
-      {showAIChat && <AIChatModal isOpen={showAIChat} onClose={() => setShowAIChat(false)} />}
+      {showAIChat && <Suspense fallback={null}><AIChatModal isOpen={showAIChat} onClose={() => setShowAIChat(false)} /></Suspense>}
       <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} onComplete={handleLoginComplete} />
 
       {showOnboarding && isLoggedIn && (
