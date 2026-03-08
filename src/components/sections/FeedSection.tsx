@@ -1,15 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { Heart, MessageCircle, Bookmark, Share2, MapPin, TrendingUp, UserPlus, UserCheck, Send, Copy, Facebook, Twitter, Link2, Loader2 } from 'lucide-react';
+import { Heart, MessageCircle, Bookmark, Share2, MapPin, TrendingUp, UserPlus, UserCheck, Send, Copy, Facebook, Twitter, Link2, Loader2, Flag, Ban, BadgeCheck, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { formatDistanceToNow } from 'date-fns';
 
 interface FeedPost {
   id: string;
   userId: string;
   userName: string;
   userAvatar: string;
+  userEmail?: string;
+  emailVerified?: boolean;
   location: string;
   caption: string;
   image: string;
@@ -24,43 +27,54 @@ interface FeedSectionProps {
   onViewUserProfile?: (userId: string) => void;
 }
 
+const PAGE_SIZE = 10;
+
 const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile }) => {
   const { user } = useAuth();
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [commentingOn, setCommentingOn] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
   const [shareMenuOpen, setShareMenuOpen] = useState<string | null>(null);
+  const [reportMenuOpen, setReportMenuOpen] = useState<string | null>(null);
   const [followMap, setFollowMap] = useState<Record<string, string>>({});
+  const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set());
   const [trendingLocations, setTrendingLocations] = useState<string[]>([]);
   const [filterLocation, setFilterLocation] = useState<string | null>(null);
   const shareRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const offsetRef = useRef(0);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (shareMenuOpen && shareRef.current && !shareRef.current.contains(e.target as Node)) setShareMenuOpen(null);
+      if (reportMenuOpen) setReportMenuOpen(null);
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [shareMenuOpen]);
+  }, [shareMenuOpen, reportMenuOpen]);
 
-  const loadFeed = useCallback(async () => {
+  const fetchPage = useCallback(async (offset: number, append: boolean) => {
     if (!user) return;
-    setLoading(true);
+    if (!append) setLoading(true);
+    else setLoadingMore(true);
 
     let query = supabase
       .from('posts')
       .select('id,user_id,caption,media_url,location,created_at,profiles!posts_user_id_fkey(display_name,avatar_url,location)')
       .order('created_at', { ascending: false })
-      .limit(50);
+      .range(offset, offset + PAGE_SIZE - 1);
 
-    if (filterLocation) {
-      query = query.ilike('location', `%${filterLocation}%`);
-    }
+    if (filterLocation) query = query.ilike('location', `%${filterLocation}%`);
 
     const { data: postRows } = await query;
-
     const rows = (postRows || []) as any[];
+
+    if (rows.length < PAGE_SIZE) setHasMore(false);
+    else setHasMore(true);
+
     const postIds = rows.map((r) => r.id);
     const authorIds = [...new Set(rows.map((r) => r.user_id))];
 
@@ -87,28 +101,41 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile }) => {
 
     const followStatus: Record<string, string> = {};
     (((followsRes as any).data || []) as any[]).forEach((f) => { followStatus[f.following_id] = f.status; });
-    setFollowMap(followStatus);
+    if (!append) setFollowMap(followStatus);
+    else setFollowMap((prev) => ({ ...prev, ...followStatus }));
 
-    setPosts(
-      rows.map((r) => ({
-        id: r.id,
-        userId: r.user_id,
-        userName: r.profiles?.display_name || 'Traveler',
-        userAvatar: r.profiles?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=face',
-        location: r.location || r.profiles?.location || 'Unknown',
-        caption: r.caption || '',
-        image: r.media_url || '',
-        createdAt: r.created_at,
-        likes: likeCountMap[r.id] || 0,
-        comments: commentCountMap[r.id] || 0,
-        liked: likedByMe.has(r.id),
-        saved: saved.has(r.id),
-      }))
-    );
+    const newPosts: FeedPost[] = rows.map((r) => ({
+      id: r.id,
+      userId: r.user_id,
+      userName: r.profiles?.display_name || 'Traveler',
+      userAvatar: r.profiles?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=face',
+      location: r.location || r.profiles?.location || 'Unknown',
+      caption: r.caption || '',
+      image: r.media_url || '',
+      createdAt: r.created_at,
+      likes: likeCountMap[r.id] || 0,
+      comments: commentCountMap[r.id] || 0,
+      liked: likedByMe.has(r.id),
+      saved: saved.has(r.id),
+    }));
+
+    if (append) setPosts((prev) => [...prev, ...newPosts]);
+    else setPosts(newPosts);
+
+    offsetRef.current = offset + rows.length;
     setLoading(false);
+    setLoadingMore(false);
   }, [user, filterLocation]);
 
-  // Load trending locations from post data
+  // Load blocked users
+  useEffect(() => {
+    if (!user) return;
+    supabase.from('blocks').select('blocked_id').eq('blocker_id', user.id).then(({ data }) => {
+      setBlockedIds(new Set((data || []).map((b: any) => b.blocked_id)));
+    });
+  }, [user]);
+
+  // Load trending locations
   useEffect(() => {
     const loadTrending = async () => {
       const { data } = await supabase.from('posts').select('location').not('location', 'is', null).limit(200);
@@ -126,26 +153,41 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile }) => {
     loadTrending();
   }, []);
 
-  useEffect(() => { loadFeed(); }, [loadFeed]);
+  // Initial + filter change
+  useEffect(() => {
+    offsetRef.current = 0;
+    setHasMore(true);
+    fetchPage(0, false);
+  }, [fetchPage]);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+          fetchPage(offsetRef.current, true);
+        }
+      },
+      { rootMargin: '200px' },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loading, fetchPage]);
 
   const toggleLike = async (postId: string, liked: boolean) => {
     if (!user) return;
     setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, liked: !liked, likes: liked ? p.likes - 1 : p.likes + 1 } : p));
-    if (liked) {
-      await supabase.from('post_likes').delete().eq('post_id', postId).eq('user_id', user.id);
-    } else {
-      await supabase.from('post_likes').insert({ post_id: postId, user_id: user.id });
-    }
+    if (liked) await supabase.from('post_likes').delete().eq('post_id', postId).eq('user_id', user.id);
+    else await supabase.from('post_likes').insert({ post_id: postId, user_id: user.id });
   };
 
   const toggleSave = async (postId: string, saved: boolean) => {
     if (!user) return;
     setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, saved: !saved } : p));
-    if (saved) {
-      await supabase.from('saved_posts').delete().eq('post_id', postId).eq('user_id', user.id);
-    } else {
-      await supabase.from('saved_posts').insert({ post_id: postId, user_id: user.id });
-    }
+    if (saved) await supabase.from('saved_posts').delete().eq('post_id', postId).eq('user_id', user.id);
+    else await supabase.from('saved_posts').insert({ post_id: postId, user_id: user.id });
     toast({ title: saved ? 'Removed from saved' : 'Post saved! 🔖' });
   };
 
@@ -173,6 +215,21 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile }) => {
     }
   };
 
+  const handleReport = async (postUserId: string, reason: string) => {
+    if (!user) return;
+    await supabase.from('reports').insert({ reporter_id: user.id, reported_user_id: postUserId, reason });
+    toast({ title: 'Report submitted. Thank you! 🛡️' });
+    setReportMenuOpen(null);
+  };
+
+  const handleBlock = async (targetUserId: string, userName: string) => {
+    if (!user) return;
+    await supabase.from('blocks').insert({ blocker_id: user.id, blocked_id: targetUserId });
+    setBlockedIds((prev) => new Set(prev).add(targetUserId));
+    toast({ title: `${userName} has been blocked` });
+    setReportMenuOpen(null);
+  };
+
   const handleShare = (post: FeedPost, method: string) => {
     const shareText = `${post.userName} on TripSync: ${post.caption}`;
     const shareUrl = window.location.href;
@@ -186,6 +243,8 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile }) => {
 
   const isVideo = (url: string) => /\.(mp4|webm|mov|ogg)$/i.test(url);
 
+  const visiblePosts = useMemo(() => posts.filter((p) => !blockedIds.has(p.userId)), [posts, blockedIds]);
+
   return (
     <section className="py-20 lg:py-32 bg-muted/30">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -198,23 +257,46 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile }) => {
           <div className="lg:col-span-2 space-y-6">
             {loading ? (
               <div className="travel-card p-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" /></div>
-            ) : posts.length === 0 ? (
+            ) : visiblePosts.length === 0 ? (
               <div className="travel-card p-8 text-center text-muted-foreground">{filterLocation ? `No posts from "${filterLocation}" yet.` : 'No posts yet. Create the first post from your profile!'}</div>
-            ) : posts.map((post) => (
+            ) : visiblePosts.map((post) => (
               <article key={post.id} className="bg-card rounded-3xl overflow-hidden shadow-lg hover:shadow-xl transition-shadow">
                 <div className="flex items-center justify-between px-6 py-4">
                   <div className="flex items-center gap-3 cursor-pointer" onClick={() => onViewUserProfile?.(post.userId)}>
                     <img src={post.userAvatar} alt={post.userName} className="w-12 h-12 rounded-full object-cover" />
                     <div>
-                      <h3 className="font-semibold text-foreground hover:text-primary transition-colors">{post.userName}</h3>
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="font-semibold text-foreground hover:text-primary transition-colors">{post.userName}</h3>
+                        <BadgeCheck className="w-4 h-4 text-primary" />
+                      </div>
                       <div className="flex items-center gap-1 text-sm text-muted-foreground"><MapPin className="w-3 h-3" />{post.location}</div>
                     </div>
                   </div>
-                  {post.userId !== user?.id && (
-                    <button onClick={() => handleFollow(post.userId, post.userName)} className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${followMap[post.userId] === 'accepted' ? 'bg-muted text-foreground' : 'gradient-primary text-white'}`}>
-                      {followMap[post.userId] === 'accepted' ? <><UserCheck className="w-3 h-3" /> Following</> : followMap[post.userId] === 'pending' ? <><UserPlus className="w-3 h-3" /> Requested</> : <><UserPlus className="w-3 h-3" /> Follow</>}
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {post.userId !== user?.id && (
+                      <button onClick={() => handleFollow(post.userId, post.userName)} className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${followMap[post.userId] === 'accepted' ? 'bg-muted text-foreground' : 'gradient-primary text-white'}`}>
+                        {followMap[post.userId] === 'accepted' ? <><UserCheck className="w-3 h-3" /> Following</> : followMap[post.userId] === 'pending' ? <><UserPlus className="w-3 h-3" /> Requested</> : <><UserPlus className="w-3 h-3" /> Follow</>}
+                      </button>
+                    )}
+                    {post.userId !== user?.id && (
+                      <div className="relative">
+                        <button onClick={() => setReportMenuOpen(reportMenuOpen === post.id ? null : post.id)} className="p-1.5 rounded-full hover:bg-muted transition-colors">
+                          <Flag className="w-4 h-4 text-muted-foreground" />
+                        </button>
+                        {reportMenuOpen === post.id && (
+                          <div className="absolute top-full right-0 mt-1 w-48 bg-background border border-border rounded-xl shadow-xl z-50 animate-fade-in overflow-hidden p-1.5">
+                            <button onClick={() => handleReport(post.userId, 'spam')} className="w-full px-3 py-2 text-sm text-left hover:bg-muted rounded-lg">Report as Spam</button>
+                            <button onClick={() => handleReport(post.userId, 'inappropriate')} className="w-full px-3 py-2 text-sm text-left hover:bg-muted rounded-lg">Inappropriate Content</button>
+                            <button onClick={() => handleReport(post.userId, 'harassment')} className="w-full px-3 py-2 text-sm text-left hover:bg-muted rounded-lg">Harassment</button>
+                            <hr className="my-1 border-border" />
+                            <button onClick={() => handleBlock(post.userId, post.userName)} className="w-full px-3 py-2 text-sm text-left text-destructive hover:bg-destructive/5 rounded-lg flex items-center gap-2">
+                              <Ban className="w-3 h-3" />Block User
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {post.image && (
@@ -263,10 +345,22 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile }) => {
                       </div>
                     </div>
                   )}
-                  <p className="text-xs text-muted-foreground uppercase">{new Date(post.createdAt).toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Calendar className="w-3 h-3" />
+                    {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })} · {new Date(post.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </p>
                 </div>
               </article>
             ))}
+
+            {/* Infinite scroll sentinel */}
+            <div ref={sentinelRef} className="h-1" />
+            {loadingMore && (
+              <div className="text-center py-4"><Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" /></div>
+            )}
+            {!hasMore && visiblePosts.length > 0 && (
+              <p className="text-center text-sm text-muted-foreground py-4">You've seen all posts ✨</p>
+            )}
           </div>
 
           <div className="space-y-6">

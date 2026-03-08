@@ -6,6 +6,7 @@ import EditProfileModal from '@/components/modals/EditProfileModal';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { compressImage } from '@/lib/imageCompression';
 
 interface ProfileSectionProps {
   onLogout?: () => void;
@@ -74,9 +75,10 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
 
   const uploadToBucket = async (file: File, type: 'avatar' | 'cover') => {
     if (!user) return null;
-    const ext = file.name.split('.').pop() || 'jpg';
+    const compressed = await compressImage(file);
+    const ext = compressed.name.split('.').pop() || 'jpg';
     const path = `${user.id}/${type}-${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from('profile-media').upload(path, file, { cacheControl: '3600', upsert: true });
+    const { error } = await supabase.storage.from('profile-media').upload(path, compressed, { cacheControl: '3600', upsert: true });
     if (error) throw error;
     return supabase.storage.from('profile-media').getPublicUrl(path).data.publicUrl;
   };
@@ -120,8 +122,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
   const handlePostLocationChange = (val: string) => {
     setPostLocation(val);
     if (val.length >= 2) {
-      const filtered = LOCATION_SUGGESTIONS.filter(l => l.toLowerCase().includes(val.toLowerCase())).slice(0, 5);
-      setLocationSuggestions(filtered);
+      setLocationSuggestions(LOCATION_SUGGESTIONS.filter(l => l.toLowerCase().includes(val.toLowerCase())).slice(0, 5));
     } else {
       setLocationSuggestions([]);
     }
@@ -133,9 +134,10 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
     try {
       let mediaUrl: string | null = null;
       if (postFile) {
-        const ext = postFile.name.split('.').pop() || 'jpg';
+        const compressed = await compressImage(postFile);
+        const ext = compressed.name.split('.').pop() || 'jpg';
         const path = `${user.id}/${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabase.storage.from('post-media').upload(path, postFile, { upsert: true });
+        const { error: uploadError } = await supabase.storage.from('post-media').upload(path, compressed, { upsert: true });
         if (uploadError) throw uploadError;
         mediaUrl = supabase.storage.from('post-media').getPublicUrl(path).data.publicUrl;
       }
