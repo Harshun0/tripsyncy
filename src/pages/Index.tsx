@@ -166,7 +166,7 @@ const Index: React.FC = () => {
           <>
             <HeroSection onGetStarted={handleGetStarted} onExplore={() => handleNavigate('explore')} isLoggedIn={isLoggedIn} />
             <FeaturesSection onNavigate={handleNavigate} isLoggedIn={isLoggedIn} />
-            <TravelersSection />
+            <TravelersIntroSection onNavigate={handleNavigate} isLoggedIn={isLoggedIn} />
             <ItineraryIntroSection onNavigate={handleNavigate} isLoggedIn={isLoggedIn} />
           </>
         );
