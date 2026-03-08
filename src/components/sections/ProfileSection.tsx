@@ -141,11 +141,23 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
 
   const handleLogout = async () => { await signOut(); toast({ title: 'Logged out successfully 👋' }); onLogout?.(); };
 
+  const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null);
+
   const handleProfileSave = async (data: any) => {
-    const { error } = await updateProfile({ display_name: data.displayName, bio: data.bio, location: data.location, budget: data.budget, personality: data.personality, interests: data.interests } as any);
-    if (error) { toast({ title: 'Profile update failed', description: error, variant: 'destructive' }); return; }
-    setShowEditProfile(false);
-    toast({ title: 'Profile updated! ✅' });
+    try {
+      // Upload pending avatar if any
+      if (pendingAvatarFile) {
+        await handleFileUpload(pendingAvatarFile, 'avatar');
+        setPendingAvatarFile(null);
+      }
+      const { error } = await updateProfile({ display_name: data.displayName, bio: data.bio, location: data.location, budget: data.budget, personality: data.personality, interests: data.interests } as any);
+      if (error) { toast({ title: 'Profile update failed', description: error, variant: 'destructive' }); return; }
+      await refreshProfile();
+      setShowEditProfile(false);
+      toast({ title: 'Profile updated! ✅' });
+    } catch (e) {
+      toast({ title: 'Save failed', description: e instanceof Error ? e.message : 'Please try again', variant: 'destructive' });
+    }
   };
 
   const handlePostLocationChange = (val: string) => {
