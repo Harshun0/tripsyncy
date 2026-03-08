@@ -46,6 +46,12 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile }) => {
   const shareRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const offsetRef = useRef(0);
+  const [mediaIndices, setMediaIndices] = useState<Record<string, number>>({});
+
+  const getMediaUrls = (url: string): string[] => {
+    if (!url) return [];
+    return url.split(',').map(u => u.trim()).filter(Boolean);
+  };
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
