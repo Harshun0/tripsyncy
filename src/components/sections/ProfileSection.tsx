@@ -216,8 +216,29 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
       setCreatingPost(false);
     }
   };
+  const handleDeletePost = async (postId: string) => {
+    const { error } = await supabase.from('posts').delete().eq('id', postId);
+    if (error) { toast({ title: 'Delete failed', variant: 'destructive' }); return; }
+    toast({ title: 'Post deleted' });
+    setMyPosts(prev => prev.filter(p => p.id !== postId));
+    setPostMenuOpen(null);
+  };
 
-  return (
+  const handleEditPost = async () => {
+    if (!editingPost) return;
+    const { error } = await supabase.from('posts').update({ caption: editCaption }).eq('id', editingPost.id);
+    if (error) { toast({ title: 'Update failed', variant: 'destructive' }); return; }
+    toast({ title: 'Post updated ✅' });
+    setMyPosts(prev => prev.map(p => p.id === editingPost.id ? { ...p, caption: editCaption } : p));
+    setEditingPost(null);
+  };
+
+  const getMediaUrls = (mediaUrl: string | null): string[] => {
+    if (!mediaUrl) return [];
+    return mediaUrl.split(',').map(u => u.trim()).filter(Boolean);
+  };
+
+
     <section className="py-20 lg:py-32 bg-background">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="relative mb-12">
