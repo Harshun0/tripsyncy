@@ -49,6 +49,12 @@ const Index: React.FC = () => {
   const [onboardingAvatarPreview, setOnboardingAvatarPreview] = useState<string | null>(null);
   const [onboardingCoverPreview, setOnboardingCoverPreview] = useState<string | null>(null);
 
+  // Apply dark mode from profile on load
+  useEffect(() => {
+    if (profile?.dark_mode) document.documentElement.classList.add('dark');
+    else document.documentElement.classList.remove('dark');
+  }, [profile?.dark_mode]);
+
   useEffect(() => {
     if (!loading) {
       if (isLoggedIn && activeSection === 'landing') setActiveSection('home');
