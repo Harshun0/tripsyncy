@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import FloatingMessagesButton from '@/components/layout/FloatingMessagesButton';
@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { compressImage } from '@/lib/imageCompression';
 import { Camera, Loader2 } from 'lucide-react';
 
 const Index: React.FC = () => {
@@ -47,6 +48,12 @@ const Index: React.FC = () => {
   const [onboardingCover, setOnboardingCover] = useState<File | null>(null);
   const [onboardingAvatarPreview, setOnboardingAvatarPreview] = useState<string | null>(null);
   const [onboardingCoverPreview, setOnboardingCoverPreview] = useState<string | null>(null);
+
+  // Apply dark mode from profile on load
+  useEffect(() => {
+    if (profile?.dark_mode) document.documentElement.classList.add('dark');
+    else document.documentElement.classList.remove('dark');
+  }, [profile?.dark_mode]);
 
   useEffect(() => {
     if (!loading) {
@@ -92,9 +99,10 @@ const Index: React.FC = () => {
 
   const uploadOnboardingFile = async (file: File, type: 'avatar' | 'cover') => {
     if (!user) return null;
-    const ext = file.name.split('.').pop() || 'jpg';
+    const compressed = await compressImage(file);
+    const ext = compressed.name.split('.').pop() || 'jpg';
     const path = `${user.id}/${type}-${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from('profile-media').upload(path, file, { cacheControl: '3600', upsert: true });
+    const { error } = await supabase.storage.from('profile-media').upload(path, compressed, { cacheControl: '3600', upsert: true });
     if (error) return null;
     return supabase.storage.from('profile-media').getPublicUrl(path).data.publicUrl;
   };

@@ -3,6 +3,7 @@ import { X, Bell, Shield, Moon, Globe, Lock, LogOut, ChevronRight, User, Eye, Tr
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ProfileSettingsModalProps {
   isOpen: boolean;
@@ -10,8 +11,15 @@ interface ProfileSettingsModalProps {
   onLogout: () => void;
 }
 
+interface BlockedUser {
+  id: string;
+  blocked_id: string;
+  display_name: string;
+  avatar_url: string | null;
+}
+
 const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({ isOpen, onClose, onLogout }) => {
-  const { profile, updateProfile, updatePassword } = useAuth();
+  const { user, profile, updateProfile, updatePassword } = useAuth();
   const [notifications, setNotifications] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
   const [profileVisibility, setProfileVisibility] = useState('public');
@@ -21,6 +29,8 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({ isOpen, onC
   const [language, setLanguage] = useState(localStorage.getItem('ts_language') || 'English');
   const [messagingPref, setMessagingPref] = useState(localStorage.getItem('ts_messaging_pref') || 'Everyone');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
+  const [loadingBlocked, setLoadingBlocked] = useState(false);
 
   useEffect(() => {
     if (!profile) return;
@@ -34,6 +44,23 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({ isOpen, onC
     if (darkMode) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
   }, [darkMode]);
+
+  // Load blocked users when navigating to that page
+  useEffect(() => {
+    if (activeSubPage === 'Blocked Users' && user) {
+      setLoadingBlocked(true);
+      supabase.from('blocks').select('id,blocked_id').eq('blocker_id', user.id).then(async ({ data }) => {
+        if (!data || data.length === 0) { setBlockedUsers([]); setLoadingBlocked(false); return; }
+        const ids = data.map((b: any) => b.blocked_id);
+        const { data: profiles } = await supabase.from('profiles').select('id,display_name,avatar_url').in('id', ids);
+        setBlockedUsers(data.map((b: any) => {
+          const p = (profiles || []).find((pr: any) => pr.id === b.blocked_id);
+          return { id: b.id, blocked_id: b.blocked_id, display_name: p?.display_name || 'User', avatar_url: p?.avatar_url };
+        }));
+        setLoadingBlocked(false);
+      });
+    }
+  }, [activeSubPage, user]);
 
   if (!isOpen) return null;
 
@@ -51,40 +78,23 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({ isOpen, onC
 
   const handleSavePersonalInfo = async () => {
     const { error } = await updateProfile({ display_name: personalInfo.name, phone: personalInfo.phone } as any);
-    if (error) {
-      toast({ title: 'Failed to save', description: error, variant: 'destructive' });
-      return;
-    }
+    if (error) { toast({ title: 'Failed to save', description: error, variant: 'destructive' }); return; }
     toast({ title: 'Personal information updated! ✅' });
     setActiveSubPage(null);
   };
 
   const handleChangePassword = async () => {
-    if (passwords.newPass !== passwords.confirm) {
-      toast({ title: 'Passwords do not match', variant: 'destructive' });
-      return;
-    }
-    if (passwords.newPass.length < 6) {
-      toast({ title: 'Password must be at least 6 characters', variant: 'destructive' });
-      return;
-    }
-
+    if (passwords.newPass !== passwords.confirm) { toast({ title: 'Passwords do not match', variant: 'destructive' }); return; }
+    if (passwords.newPass.length < 6) { toast({ title: 'Password must be at least 6 characters', variant: 'destructive' }); return; }
     const { error } = await updatePassword(passwords.newPass);
-    if (error) {
-      toast({ title: 'Password update failed', description: error, variant: 'destructive' });
-      return;
-    }
-
+    if (error) { toast({ title: 'Password update failed', description: error, variant: 'destructive' }); return; }
     toast({ title: 'Password updated! 🔒' });
     setPasswords({ current: '', newPass: '', confirm: '' });
     setActiveSubPage(null);
   };
 
   const handleDeleteAccount = () => {
-    if (!showDeleteConfirm) {
-      setShowDeleteConfirm(true);
-      return;
-    }
+    if (!showDeleteConfirm) { setShowDeleteConfirm(true); return; }
     toast({ title: 'Delete account flow', description: 'Please contact support to complete secure account deletion.' });
     setShowDeleteConfirm(false);
     setActiveSubPage(null);
@@ -109,6 +119,12 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({ isOpen, onC
     localStorage.setItem('ts_messaging_pref', value);
     toast({ title: `Messaging set to: ${value} 💬` });
     setActiveSubPage(null);
+  };
+
+  const handleUnblock = async (blockId: string, name: string) => {
+    await supabase.from('blocks').delete().eq('id', blockId);
+    setBlockedUsers((prev) => prev.filter((b) => b.id !== blockId));
+    toast({ title: `${name} unblocked` });
   };
 
   if (activeSubPage) {
@@ -161,7 +177,26 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({ isOpen, onC
               ))}</div>
             )}
 
-            {activeSubPage === 'Blocked Users' && <div className="text-center py-8"><Shield className="w-12 h-12 text-muted-foreground mx-auto mb-3" /><p className="text-foreground font-medium mb-1">No blocked users</p></div>}
+            {activeSubPage === 'Blocked Users' && (
+              loadingBlocked ? (
+                <div className="text-center py-8 text-muted-foreground">Loading...</div>
+              ) : blockedUsers.length === 0 ? (
+                <div className="text-center py-8"><Shield className="w-12 h-12 text-muted-foreground mx-auto mb-3" /><p className="text-foreground font-medium mb-1">No blocked users</p></div>
+              ) : (
+                <div className="space-y-3">
+                  {blockedUsers.map((bu) => (
+                    <div key={bu.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <img src={bu.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=50&h=50&fit=crop&crop=face'} alt="" className="w-10 h-10 rounded-full object-cover" />
+                        <span className="font-medium text-foreground text-sm">{bu.display_name}</span>
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => handleUnblock(bu.id, bu.display_name)} className="text-xs rounded-full">Unblock</Button>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+
             {activeSubPage === 'Help Center' && <div className="p-4 bg-muted/50 rounded-xl"><p className="text-sm text-muted-foreground">Support: help@tripsync.com</p></div>}
             {activeSubPage === 'Privacy Policy' && <div className="p-4 bg-muted/50 rounded-xl"><p className="text-sm text-muted-foreground">Your data is processed securely and only for app functionality.</p></div>}
 

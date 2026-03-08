@@ -3,6 +3,7 @@ import { MapPin, Menu, X, Sparkles, User, LogIn, LogOut, Bell, Search, Heart, Bo
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { requestNotificationPermission, showBrowserNotification } from '@/lib/notifications';
 
 interface NotificationItem {
   id: string;
@@ -30,6 +31,7 @@ const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+  const prevCountRef = useRef(0);
 
   const navItems = [
     { id: 'home', label: 'Home' },
@@ -40,6 +42,11 @@ const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, 
   ];
 
   const unreadCount = useMemo(() => notifications.filter((n) => !n.is_read).length, [notifications]);
+
+  // Request notification permission on login
+  useEffect(() => {
+    if (user) requestNotificationPermission();
+  }, [user]);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -62,7 +69,6 @@ const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, 
 
       if (!data) return;
 
-      // Fetch actor names
       const actorIds = [...new Set((data as any[]).filter(n => n.actor_id).map(n => n.actor_id))];
       let actorMap: Record<string, string> = {};
       if (actorIds.length > 0) {
@@ -70,10 +76,23 @@ const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, 
         (profiles || []).forEach((p: any) => { actorMap[p.id] = p.display_name; });
       }
 
-      setNotifications((data as any[]).map(n => ({
+      const mapped = (data as any[]).map(n => ({
         ...n,
         actor_name: n.actor_id ? actorMap[n.actor_id] : undefined,
-      })));
+      }));
+
+      setNotifications(mapped);
+
+      // Browser push for new notifications
+      const newUnread = mapped.filter(n => !n.is_read).length;
+      if (newUnread > prevCountRef.current && prevCountRef.current > 0) {
+        const latest = mapped.find(n => !n.is_read);
+        if (latest) {
+          const name = latest.actor_name || 'Someone';
+          showBrowserNotification('TripSync', getNotifTextStatic(latest, name));
+        }
+      }
+      prevCountRef.current = newUnread;
     };
 
     loadNotifications();
@@ -93,14 +112,7 @@ const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, 
 
   const getNotifText = (notif: NotificationItem) => {
     const name = notif.actor_name || 'Someone';
-    switch (notif.type) {
-      case 'follow_request': return `${name} requested to follow you`;
-      case 'follow_accepted': return `${name} started following you`;
-      case 'follow_request_accepted': return `${name} accepted your follow request`;
-      case 'post_like': return `${name} liked your post`;
-      case 'post_comment': return `${name} commented: ${notif.body || ''}`;
-      default: return notif.body || notif.title;
-    }
+    return getNotifTextStatic(notif, name);
   };
 
   return (
@@ -217,5 +229,17 @@ const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, 
     </header>
   );
 };
+
+// Static helper to avoid closure issues
+function getNotifTextStatic(notif: NotificationItem, name: string) {
+  switch (notif.type) {
+    case 'follow_request': return `${name} requested to follow you`;
+    case 'follow_accepted': return `${name} started following you`;
+    case 'follow_request_accepted': return `${name} accepted your follow request`;
+    case 'post_like': return `${name} liked your post`;
+    case 'post_comment': return `${name} commented: ${notif.body || ''}`;
+    default: return notif.body || notif.title;
+  }
+}
 
 export default Header;
