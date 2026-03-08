@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { MapPin, BadgeCheck, UserPlus, UserCheck, MessageCircle, ArrowLeft, Loader2 } from 'lucide-react';
+import { MapPin, BadgeCheck, UserPlus, UserCheck, MessageCircle, ArrowLeft, Loader2, Lock, Globe, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,24 +20,51 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, onBack, o
   const [followingCount, setFollowingCount] = useState(0);
   const [postCount, setPostCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [canViewPosts, setCanViewPosts] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const [profileRes, postsRes, followersRes, followingRes, followRes] = await Promise.all([
+      const [profileRes, followersRes, followingRes, followRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
-        supabase.from('posts').select('id,caption,media_url,location,created_at').eq('user_id', userId).eq('is_public', true).order('created_at', { ascending: false }).limit(30),
         supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', userId).eq('status', 'accepted'),
         supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', userId).eq('status', 'accepted'),
         user ? supabase.from('follows').select('status').eq('follower_id', user.id).eq('following_id', userId).maybeSingle() : Promise.resolve({ data: null }),
       ]);
 
-      if (profileRes.data) setProfile(profileRes.data);
-      setPosts(postsRes.data || []);
+      const prof = profileRes.data;
+      if (prof) setProfile(prof);
       setFollowerCount(followersRes.count || 0);
       setFollowingCount(followingRes.count || 0);
-      setPostCount(postsRes.data?.length || 0);
-      setFollowStatus((followRes.data as any)?.status || null);
+      const currentFollowStatus = (followRes.data as any)?.status || null;
+      setFollowStatus(currentFollowStatus);
+
+      // Determine if we can view posts
+      const isOwner = user?.id === userId;
+      const isPublic = prof?.profile_visibility === 'public' || !prof?.profile_visibility;
+      const isAcceptedFollower = currentFollowStatus === 'accepted';
+      const canView = isOwner || isPublic || isAcceptedFollower;
+      setCanViewPosts(canView);
+
+      if (canView) {
+        const postsRes = await supabase
+          .from('posts')
+          .select('id,caption,media_url,location,created_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(30);
+        setPosts(postsRes.data || []);
+        setPostCount(postsRes.data?.length || 0);
+      } else {
+        // For private accounts, get count via a count query (RLS will filter)
+        const countRes = await supabase
+          .from('posts')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId);
+        setPostCount(countRes.count || 0);
+        setPosts([]);
+      }
+
       setLoading(false);
     };
     load();
@@ -46,13 +73,38 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, onBack, o
   const handleFollow = async () => {
     if (!user) return;
     if (!followStatus) {
-      await supabase.from('follows').insert({ follower_id: user.id, following_id: userId, status: 'pending' });
-      setFollowStatus('pending');
-      toast({ title: 'Follow request sent' });
+      const isPublic = profile?.profile_visibility === 'public' || !profile?.profile_visibility;
+      const newStatus = isPublic ? 'accepted' : 'pending';
+      await supabase.from('follows').insert({ follower_id: user.id, following_id: userId, status: newStatus });
+      setFollowStatus(newStatus);
+      if (newStatus === 'accepted') {
+        setFollowerCount(c => c + 1);
+        toast({ title: `Following ${profile?.display_name}` });
+        // Reload posts since we can now see them
+        const postsRes = await supabase
+          .from('posts')
+          .select('id,caption,media_url,location,created_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(30);
+        setPosts(postsRes.data || []);
+        setPostCount(postsRes.data?.length || 0);
+        setCanViewPosts(true);
+      } else {
+        toast({ title: 'Follow request sent 📩' });
+      }
     } else {
       await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', userId);
+      if (followStatus === 'accepted') {
+        setFollowerCount(c => c - 1);
+        // If private account, hide posts again
+        const isPublic = profile?.profile_visibility === 'public' || !profile?.profile_visibility;
+        if (!isPublic) {
+          setCanViewPosts(false);
+          setPosts([]);
+        }
+      }
       setFollowStatus(null);
-      if (followStatus === 'accepted') setFollowerCount(c => c - 1);
       toast({ title: followStatus === 'accepted' ? 'Unfollowed' : 'Request cancelled' });
     }
   };
@@ -62,6 +114,8 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, onBack, o
 
   const avatarUrl = profile.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face';
   const coverUrl = profile.cover_url || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&h=400&fit=crop';
+  const isPrivate = profile.profile_visibility === 'private' || profile.profile_visibility === 'friends';
+  const isPublic = !isPrivate;
 
   return (
     <section className="py-20 lg:py-32 bg-background">
@@ -80,7 +134,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, onBack, o
             <div className="relative">
               <img src={avatarUrl} alt={profile.display_name} className="w-32 h-32 rounded-3xl object-cover border-4 border-background shadow-xl" />
               <div className="absolute -bottom-2 -right-2 w-10 h-10 gradient-primary rounded-full flex items-center justify-center shadow-lg">
-                <BadgeCheck className="w-6 h-6 text-white" />
+                {isPrivate ? <Lock className="w-5 h-5 text-white" /> : <BadgeCheck className="w-6 h-6 text-white" />}
               </div>
             </div>
           </div>
@@ -89,7 +143,19 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, onBack, o
         <div className="mt-20 grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
             <div>
-              <h1 className="text-3xl font-bold text-foreground">{profile.display_name}</h1>
+              <div className="flex items-center gap-3">
+                <h1 className="text-3xl font-bold text-foreground">{profile.display_name}</h1>
+                {isPrivate && (
+                  <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-muted text-xs font-medium text-muted-foreground">
+                    <Lock className="w-3 h-3" /> Private
+                  </span>
+                )}
+                {isPublic && (
+                  <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 text-xs font-medium text-primary">
+                    <Globe className="w-3 h-3" /> Public
+                  </span>
+                )}
+              </div>
               {profile.location && (
                 <div className="flex items-center gap-2 text-muted-foreground mt-2"><MapPin className="w-4 h-4" />{profile.location}</div>
               )}
@@ -105,7 +171,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, onBack, o
             {user?.id !== userId && (
               <div className="flex gap-3">
                 <Button onClick={handleFollow} className={`flex-1 h-12 rounded-xl font-semibold ${followStatus === 'accepted' ? 'bg-muted text-foreground' : 'gradient-primary text-primary-foreground'}`}>
-                  {followStatus === 'accepted' ? <><UserCheck className="w-5 h-5 mr-2" />Following</> : followStatus === 'pending' ? <><UserPlus className="w-5 h-5 mr-2" />Requested</> : <><UserPlus className="w-5 h-5 mr-2" />Follow</>}
+                  {followStatus === 'accepted' ? <><UserCheck className="w-5 h-5 mr-2" />Following</> : followStatus === 'pending' ? <><UserPlus className="w-5 h-5 mr-2" />Requested</> : <><UserPlus className="w-5 h-5 mr-2" />{isPrivate ? 'Request to Follow' : 'Follow'}</>}
                 </Button>
                 {followStatus === 'accepted' && (
                   <Button onClick={onOpenMessages} variant="outline" className="flex-1 h-12 rounded-xl font-semibold border-2 border-primary text-primary">
@@ -127,23 +193,49 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, onBack, o
 
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-foreground">Posts</h3>
-            {posts.length === 0 ? (
+            
+            {!canViewPosts ? (
+              <div className="travel-card p-8 text-center space-y-4">
+                <div className="w-16 h-16 mx-auto rounded-full bg-muted flex items-center justify-center">
+                  <Lock className="w-8 h-8 text-muted-foreground" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-foreground mb-1">This Account is Private</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Follow this account to see their photos and posts.
+                  </p>
+                </div>
+                {!followStatus && user?.id !== userId && (
+                  <Button onClick={handleFollow} className="gradient-primary text-primary-foreground rounded-xl px-8">
+                    <UserPlus className="w-4 h-4 mr-2" />Request to Follow
+                  </Button>
+                )}
+                {followStatus === 'pending' && (
+                  <p className="text-sm text-muted-foreground flex items-center justify-center gap-2">
+                    <Users className="w-4 h-4" /> Follow request pending
+                  </p>
+                )}
+              </div>
+            ) : posts.length === 0 ? (
               <p className="text-sm text-muted-foreground">No posts yet.</p>
             ) : (
               <div className="grid grid-cols-2 gap-2">
-                {posts.map(post => (
-                  <div key={post.id} className="aspect-square rounded-xl overflow-hidden bg-muted">
-                    {post.media_url ? (
-                      post.media_url.match(/\.(mp4|webm|mov)$/i) ? (
-                        <video src={post.media_url} className="w-full h-full object-cover" muted />
+                {posts.map(post => {
+                  const firstMedia = post.media_url ? post.media_url.split(',')[0].trim() : null;
+                  return (
+                    <div key={post.id} className="aspect-square rounded-xl overflow-hidden bg-muted">
+                      {firstMedia ? (
+                        firstMedia.match(/\.(mp4|webm|mov)$/i) ? (
+                          <video src={firstMedia} className="w-full h-full object-cover" muted />
+                        ) : (
+                          <img src={firstMedia} alt="" className="w-full h-full object-cover" />
+                        )
                       ) : (
-                        <img src={post.media_url} alt="" className="w-full h-full object-cover" />
-                      )
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground p-2 text-center">{post.caption?.slice(0, 60)}</div>
-                    )}
-                  </div>
-                ))}
+                        <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground p-2 text-center">{post.caption?.slice(0, 60)}</div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

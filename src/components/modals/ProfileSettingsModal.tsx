@@ -155,12 +155,22 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({ isOpen, onC
             )}
 
             {activeSubPage === 'Profile Visibility' && (
-              <div className="space-y-2">{['public', 'friends', 'private'].map((opt) => (
-                <button key={opt} onClick={() => updateVisibility(opt)} className={`w-full p-4 rounded-xl text-left font-medium transition-all ${profileVisibility === opt ? 'gradient-primary text-white' : 'bg-muted hover:bg-muted/80'}`}>
-                  <span className="capitalize">{opt}</span>
-                  <p className="text-xs mt-1 opacity-70">{opt === 'public' ? 'Everyone can see your profile' : opt === 'friends' ? 'Only connections can see' : 'Only you can see'}</p>
-                </button>
-              ))}</div>
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground mb-2">Control who can see your posts and profile content.</p>
+                {[
+                  { value: 'public', label: 'Public', icon: '🌐', desc: 'Everyone can see your posts and profile. Anyone can follow you instantly.' },
+                  { value: 'friends', label: 'Friends Only', icon: '👥', desc: 'Only approved followers can see your posts. Follow requests need your approval.' },
+                  { value: 'private', label: 'Private', icon: '🔒', desc: 'Only approved followers can see your posts. Others see a lock icon on your profile.' },
+                ].map((opt) => (
+                  <button key={opt.value} onClick={() => updateVisibility(opt.value)} className={`w-full p-4 rounded-xl text-left transition-all ${profileVisibility === opt.value ? 'gradient-primary text-white' : 'bg-muted hover:bg-muted/80'}`}>
+                    <div className="flex items-center gap-2 font-medium">
+                      <span>{opt.icon}</span>
+                      <span>{opt.label}</span>
+                    </div>
+                    <p className="text-xs mt-1 opacity-70">{opt.desc}</p>
+                  </button>
+                ))}
+              </div>
             )}
 
             {activeSubPage === 'Language' && (

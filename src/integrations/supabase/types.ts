@@ -873,6 +873,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_view_user_posts: {
+        Args: { _owner_id: string; _viewer_id: string }
+        Returns: boolean
+      }
       is_expense_group_member: {
         Args: { _group_id: string; _user_id: string }
         Returns: boolean
