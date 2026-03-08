@@ -25,6 +25,7 @@ interface FeedPost {
 
 interface FeedSectionProps {
   onViewUserProfile?: (userId: string) => void;
+  onViewPost?: (postId: string) => void;
 }
 
 const PAGE_SIZE = 10;
