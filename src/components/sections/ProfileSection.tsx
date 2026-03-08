@@ -64,7 +64,12 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
   const [postFiles, setPostFiles] = useState<File[]>([]);
   const [creatingPost, setCreatingPost] = useState(false);
   const [locationSuggestions, setLocationSuggestions] = useState<string[]>([]);
-  const shareRef = useRef<HTMLDivElement>(null);
+  const [myPosts, setMyPosts] = useState<any[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
+  const [editingPost, setEditingPost] = useState<any>(null);
+  const [editCaption, setEditCaption] = useState('');
+  const [postMenuOpen, setPostMenuOpen] = useState<string | null>(null);
+  const [mediaIndices, setMediaIndices] = useState<Record<string, number>>({});
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
