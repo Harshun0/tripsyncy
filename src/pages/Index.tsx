@@ -27,6 +27,7 @@ const AIChatModal = lazy(() => import('@/components/sections/AIChatModal'));
 const TripCreateScreen = lazy(() => import('@/components/screens/TripCreateScreen'));
 const UserProfileScreen = lazy(() => import('@/components/screens/UserProfileScreen'));
 const SavedPostsScreen = lazy(() => import('@/components/screens/SavedPostsScreen'));
+const PostDetailScreen = lazy(() => import('@/components/screens/PostDetailScreen'));
 
 const SectionLoader = () => (
   <div className="flex items-center justify-center py-20">
