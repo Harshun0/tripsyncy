@@ -65,8 +65,9 @@ const ExpenseSection: React.FC = () => {
       const { data: friendProfiles } = await supabase.from('profiles').select('id,display_name').in('id', friendIds);
       const friendRows = (friendProfiles || []).map((f: any) => ({ id: f.id, name: f.display_name }));
       setFriends(friendRows);
-      if (!newExpense.paidBy) setNewExpense((p) => ({ ...p, paidBy: user.id }));
     }
+    // Always ensure paidBy defaults to current user
+    setNewExpense((p) => ({ ...p, paidBy: p.paidBy || user.id }));
   };
 
   useEffect(() => {
