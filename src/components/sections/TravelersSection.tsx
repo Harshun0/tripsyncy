@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { MapPin, Users, BadgeCheck, Heart, MessageCircle, UserPlus, UserCheck } from 'lucide-react';
+import { MapPin, Users, BadgeCheck, Heart, MessageCircle, UserPlus, UserCheck, X, Maximize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -19,6 +19,7 @@ const TravelersSection: React.FC = () => {
   const [selectedRadius, setSelectedRadius] = useState('25');
   const [travelers, setTravelers] = useState<TravelerProfile[]>([]);
   const [followMap, setFollowMap] = useState<Record<string, string>>({});
+  const [showFullMap, setShowFullMap] = useState(false);
 
   const radiusOptions = ['1', '5', '10', '25'];
 
@@ -74,6 +75,42 @@ const TravelersSection: React.FC = () => {
     toast({ title: status === 'accepted' ? `Unfollowed ${name}` : 'Request cancelled' });
   };
 
+  const renderMap = (fullScreen: boolean) => {
+    const mapTravelers = filteredTravelers.slice(0, fullScreen ? 12 : 6);
+    const size = fullScreen ? 20 : 16;
+    const centerSize = fullScreen ? 20 : 16;
+    const baseDistance = fullScreen ? 80 : 60;
+    const distanceStep = fullScreen ? 14 : 8;
+
+    return (
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="relative">
+          <div className={`w-${centerSize} h-${centerSize} gradient-primary rounded-full flex items-center justify-center shadow-glow animate-pulse-slow`} style={{ width: fullScreen ? 80 : 64, height: fullScreen ? 80 : 64 }}>
+            <MapPin className="text-white" style={{ width: fullScreen ? 40 : 32, height: fullScreen ? 40 : 32 }} />
+          </div>
+          {mapTravelers.map((traveler, index) => {
+            const angleStep = 360 / mapTravelers.length;
+            const angle = (index * angleStep) * (Math.PI / 180);
+            const distance = baseDistance + (index + 1) * distanceStep;
+            const x = Math.cos(angle) * distance;
+            const y = Math.sin(angle) * distance;
+            const imgSize = fullScreen ? 56 : 48;
+            return (
+              <div key={traveler.id} className="absolute rounded-full border-2 border-background shadow-lg overflow-hidden group cursor-pointer" style={{ width: imgSize, height: imgSize, transform: `translate(${x}px, ${y}px)`, left: '50%', top: '50%', marginLeft: -imgSize / 2, marginTop: -imgSize / 2 }}>
+                <img src={traveler.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=face'} alt={traveler.display_name} className="w-full h-full object-cover" />
+                {fullScreen && (
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <span className="text-white text-xs font-medium text-center px-1">{traveler.display_name.split(' ')[0]}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <section className="py-20 lg:py-32 bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -91,25 +128,14 @@ const TravelersSection: React.FC = () => {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8 mb-12">
-          <div className="lg:col-span-2 h-72 rounded-3xl overflow-hidden relative bg-gradient-to-br from-ocean-light to-teal-light shadow-lg">
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="relative">
-                <div className="w-16 h-16 gradient-primary rounded-full flex items-center justify-center shadow-glow animate-pulse-slow"><MapPin className="w-8 h-8 text-white" /></div>
-                {filteredTravelers.slice(0, 6).map((traveler, index) => {
-                  const angles = [30, 80, 130, 200, 260, 320];
-                  const distance = 60 + (index + 1) * 8;
-                  const angle = angles[index] * (Math.PI / 180);
-                  const x = Math.cos(angle) * distance;
-                  const y = Math.sin(angle) * distance;
-                  return (
-                    <div key={traveler.id} className="absolute w-12 h-12 rounded-full border-2 border-background shadow-lg overflow-hidden" style={{ transform: `translate(${x}px, ${y}px)`, left: '50%', top: '50%', marginLeft: '-24px', marginTop: '-24px' }}>
-                      <img src={traveler.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=face'} alt={traveler.display_name} className="w-full h-full object-cover" />
-                    </div>
-                  );
-                })}
-              </div>
+          <div className="lg:col-span-2 h-72 rounded-3xl overflow-hidden relative bg-gradient-to-br from-ocean-light to-teal-light shadow-lg cursor-pointer group" onClick={() => setShowFullMap(true)}>
+            {renderMap(false)}
+            <div className="absolute top-4 right-4 w-10 h-10 bg-background/90 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+              <Maximize2 className="w-5 h-5 text-foreground" />
             </div>
-            <div className="absolute bottom-4 left-4 right-4 bg-background/95 backdrop-blur-sm rounded-2xl px-4 py-3 shadow-lg"><p className="text-sm text-foreground font-medium flex items-center gap-2"><Users className="w-4 h-4 text-primary" />{filteredTravelers.length} real travelers nearby</p></div>
+            <div className="absolute bottom-4 left-4 right-4 bg-background/95 backdrop-blur-sm rounded-2xl px-4 py-3 shadow-lg">
+              <p className="text-sm text-foreground font-medium flex items-center gap-2"><Users className="w-4 h-4 text-primary" />{filteredTravelers.length} real travelers nearby · <span className="text-primary text-xs">Click to expand map</span></p>
+            </div>
           </div>
 
           <div className="space-y-4">
@@ -146,6 +172,35 @@ const TravelersSection: React.FC = () => {
           })}
         </div>
       </div>
+
+      {/* Full Screen Map Modal */}
+      {showFullMap && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={() => setShowFullMap(false)}>
+          <div className="absolute inset-4 lg:inset-12 bg-gradient-to-br from-ocean-light to-teal-light rounded-3xl overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setShowFullMap(false)} className="absolute top-4 right-4 z-10 w-10 h-10 bg-background/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg hover:bg-background transition-colors">
+              <X className="w-5 h-5 text-foreground" />
+            </button>
+            <div className="absolute top-4 left-4 z-10 bg-background/90 backdrop-blur-sm rounded-2xl px-4 py-2 shadow-lg">
+              <h3 className="font-semibold text-foreground text-sm">Nearby Travelers Map</h3>
+              <p className="text-xs text-muted-foreground">{filteredTravelers.length} travelers within {selectedRadius} km</p>
+            </div>
+            {renderMap(true)}
+            <div className="absolute bottom-4 left-4 right-4 bg-background/95 backdrop-blur-sm rounded-2xl p-4 shadow-lg">
+              <div className="flex gap-3 overflow-x-auto pb-1">
+                {filteredTravelers.slice(0, 8).map((t) => (
+                  <div key={t.id} className="flex-shrink-0 flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2">
+                    <img src={t.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=40&h=40&fit=crop&crop=face'} alt={t.display_name} className="w-8 h-8 rounded-full object-cover" />
+                    <div>
+                      <p className="text-xs font-medium text-foreground">{t.display_name}</p>
+                      <p className="text-[10px] text-muted-foreground">{t.location || 'Nearby'}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 };

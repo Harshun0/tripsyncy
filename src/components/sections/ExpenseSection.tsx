@@ -27,7 +27,7 @@ const ExpenseSection: React.FC = () => {
   const [showReminder, setShowReminder] = useState(false);
   const [showUPIModal, setShowUPIModal] = useState(false);
   const [reminderMessage, setReminderMessage] = useState('Please settle pending trip expenses.');
-  const [newExpense, setNewExpense] = useState({ title: '', amount: '', paidBy: '', splitWith: [] as string[] });
+  const [newExpense, setNewExpense] = useState({ title: '', amount: '', paidBy: user?.id || '', splitWith: [] as string[] });
   const [upiForm, setUpiForm] = useState({ app: 'Google Pay', upiId: '', amount: '', note: 'Trip expense settlement' });
   const [submittingExpense, setSubmittingExpense] = useState(false);
 
@@ -65,8 +65,9 @@ const ExpenseSection: React.FC = () => {
       const { data: friendProfiles } = await supabase.from('profiles').select('id,display_name').in('id', friendIds);
       const friendRows = (friendProfiles || []).map((f: any) => ({ id: f.id, name: f.display_name }));
       setFriends(friendRows);
-      if (!newExpense.paidBy) setNewExpense((p) => ({ ...p, paidBy: user.id }));
     }
+    // Always ensure paidBy defaults to current user
+    setNewExpense((p) => ({ ...p, paidBy: p.paidBy || user.id }));
   };
 
   useEffect(() => {
@@ -157,23 +158,17 @@ const ExpenseSection: React.FC = () => {
       return;
     }
 
-    const rows = targetIds.map((id) => ({
-      user_id: id,
-      actor_id: user.id,
-      type: 'expense_reminder',
-      title: 'Expense reminder',
-      body: reminderMessage,
-      entity_type: 'expense',
-    }));
-
-    const { error } = await supabase.from('notifications').insert(rows as any);
-    if (error) {
-      toast({ title: 'Reminder failed', description: error.message, variant: 'destructive' });
-      return;
+    // Use edge function to send reminders (bypasses RLS for inserting notifications for other users)
+    try {
+      const { error } = await supabase.functions.invoke('send-reminders', {
+        body: { target_ids: targetIds, message: reminderMessage },
+      });
+      if (error) throw error;
+      setShowReminder(false);
+      toast({ title: 'Reminders sent 🔔' });
+    } catch (err: any) {
+      toast({ title: 'Reminder failed', description: err?.message || 'Try again', variant: 'destructive' });
     }
-
-    setShowReminder(false);
-    toast({ title: 'Reminders sent 🔔' });
   };
 
   return (

@@ -169,8 +169,7 @@ const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, 
                         ) : (
                           notifications.map((notif) => (
                             <div key={notif.id} className={`px-4 py-3 border-b border-border/50 ${!notif.is_read ? 'bg-primary/5' : ''}`}>
-                              <p className="text-sm font-medium text-foreground">{notif.title}</p>
-                              <p className="text-xs text-muted-foreground mt-1">{getNotifText(notif)}</p>
+                              <p className="text-sm font-medium text-foreground">{getNotifText(notif)}</p>
                               <p className="text-[11px] text-muted-foreground mt-1">{new Date(notif.created_at).toLocaleString()}</p>
                             </div>
                           ))
