@@ -42,99 +42,63 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   const ensureProfile = useCallback(async (authUser: User) => {
-    try {
-      const { data: existing, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', authUser.id)
-        .maybeSingle();
+    const { data: existing, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', authUser.id)
+      .maybeSingle();
 
-      if (!error && existing) {
-        setProfile(existing as Profile);
-        return;
-      }
-
-      const displayName =
-        (authUser.user_metadata?.display_name as string | undefined) ||
-        (authUser.email?.split('@')[0] ?? 'Traveler');
-
-      const { data: created } = await supabase
-        .from('profiles')
-        .insert({
-          id: authUser.id,
-          display_name: displayName,
-          interests: [],
-        })
-        .select('*')
-        .single();
-
-      if (created) setProfile(created as Profile);
-    } catch (e) {
-      console.error('ensureProfile failed:', e);
-      setProfile(null);
+    if (!error && existing) {
+      setProfile(existing as Profile);
+      return;
     }
+
+    const displayName =
+      (authUser.user_metadata?.display_name as string | undefined) ||
+      (authUser.email?.split('@')[0] ?? 'Traveler');
+
+    const { data: created } = await supabase
+      .from('profiles')
+      .insert({
+        id: authUser.id,
+        display_name: displayName,
+        interests: [],
+      })
+      .select('*')
+      .single();
+
+    if (created) setProfile(created as Profile);
   }, []);
 
   const fetchProfile = useCallback(async (userId: string) => {
-    try {
-      const { data } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-      if (data) setProfile(data as Profile);
-    } catch (e) {
-      console.error('fetchProfile failed:', e);
-    }
+    const { data } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+    if (data) setProfile(data as Profile);
   }, []);
 
   useEffect(() => {
-    let isMounted = true;
-    const failSafeTimer = window.setTimeout(() => {
-      if (isMounted) setLoading(false);
-    }, 5000);
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
-      if (!isMounted) return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
 
-      try {
-        if (nextSession?.user) {
-          await ensureProfile(nextSession.user);
-        } else {
-          setProfile(null);
-        }
-      } finally {
-        if (isMounted) setLoading(false);
+      if (nextSession?.user) {
+        await ensureProfile(nextSession.user);
+      } else {
+        setProfile(null);
       }
+
+      setLoading(false);
     });
 
-    supabase.auth
-      .getSession()
-      .then(async ({ data: { session: currentSession } }) => {
-        if (!isMounted) return;
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
+    supabase.auth.getSession().then(async ({ data: { session: currentSession } }) => {
+      setSession(currentSession);
+      setUser(currentSession?.user ?? null);
+      if (currentSession?.user) {
+        await ensureProfile(currentSession.user);
+      }
+      setLoading(false);
+    });
 
-        try {
-          if (currentSession?.user) {
-            await ensureProfile(currentSession.user);
-          } else {
-            setProfile(null);
-          }
-        } finally {
-          if (isMounted) setLoading(false);
-        }
-      })
-      .catch((e) => {
-        console.error('getSession failed:', e);
-        if (isMounted) setLoading(false);
-      });
-
-    return () => {
-      isMounted = false;
-      window.clearTimeout(failSafeTimer);
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, [ensureProfile]);
 
   const signUp = async (email: string, password: string, displayName: string) => {
