@@ -144,6 +144,23 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile, onViewPost
     });
   }, [user]);
 
+  // Load accepted followers/following for share
+  useEffect(() => {
+    if (!user) return;
+    const loadFollowers = async () => {
+      const { data: followRows } = await supabase
+        .from('follows')
+        .select('follower_id, following_id')
+        .eq('status', 'accepted')
+        .or(`follower_id.eq.${user.id},following_id.eq.${user.id}`);
+      if (!followRows || followRows.length === 0) { setAcceptedFollowers([]); return; }
+      const userIds = [...new Set(followRows.map((f: any) => f.follower_id === user.id ? f.following_id : f.follower_id))];
+      const { data: profiles } = await supabase.from('profiles').select('id,display_name,avatar_url').in('id', userIds);
+      setAcceptedFollowers((profiles || []) as any[]);
+    };
+    loadFollowers();
+  }, [user]);
+
   // Load trending locations
   useEffect(() => {
     const loadTrending = async () => {
