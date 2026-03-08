@@ -16,6 +16,7 @@ const MessagesPanel = lazy(() => import('@/components/layout/MessagesPanel'));
 const HeroSection = lazy(() => import('@/components/sections/HeroSection'));
 const FeaturesSection = lazy(() => import('@/components/sections/FeaturesSection'));
 const TravelersSection = lazy(() => import('@/components/sections/TravelersSection'));
+const TravelersIntroSection = lazy(() => import('@/components/sections/TravelersIntroSection'));
 const FeedSection = lazy(() => import('@/components/sections/FeedSection'));
 const ItinerarySection = lazy(() => import('@/components/sections/ItinerarySection'));
 const ItineraryIntroSection = lazy(() => import('@/components/sections/ItineraryIntroSection'));
@@ -166,7 +167,7 @@ const Index: React.FC = () => {
           <>
             <HeroSection onGetStarted={handleGetStarted} onExplore={() => handleNavigate('explore')} isLoggedIn={isLoggedIn} />
             <FeaturesSection onNavigate={handleNavigate} isLoggedIn={isLoggedIn} />
-            <TravelersSection />
+            <TravelersIntroSection onNavigate={handleNavigate} isLoggedIn={isLoggedIn} />
             <ItineraryIntroSection onNavigate={handleNavigate} isLoggedIn={isLoggedIn} />
           </>
         );
