@@ -27,7 +27,7 @@ const ExpenseSection: React.FC = () => {
   const [showReminder, setShowReminder] = useState(false);
   const [showUPIModal, setShowUPIModal] = useState(false);
   const [reminderMessage, setReminderMessage] = useState('Please settle pending trip expenses.');
-  const [newExpense, setNewExpense] = useState({ title: '', amount: '', paidBy: '', splitWith: [] as string[] });
+  const [newExpense, setNewExpense] = useState({ title: '', amount: '', paidBy: user?.id || '', splitWith: [] as string[] });
   const [upiForm, setUpiForm] = useState({ app: 'Google Pay', upiId: '', amount: '', note: 'Trip expense settlement' });
   const [submittingExpense, setSubmittingExpense] = useState(false);
 
