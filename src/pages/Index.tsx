@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import FloatingMessagesButton from '@/components/layout/FloatingMessagesButton';
@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { compressImage } from '@/lib/imageCompression';
 import { Camera, Loader2 } from 'lucide-react';
 
 const Index: React.FC = () => {
