@@ -157,23 +157,17 @@ const ExpenseSection: React.FC = () => {
       return;
     }
 
-    const rows = targetIds.map((id) => ({
-      user_id: id,
-      actor_id: user.id,
-      type: 'expense_reminder',
-      title: 'Expense reminder',
-      body: reminderMessage,
-      entity_type: 'expense',
-    }));
-
-    const { error } = await supabase.from('notifications').insert(rows as any);
-    if (error) {
-      toast({ title: 'Reminder failed', description: error.message, variant: 'destructive' });
-      return;
+    // Use edge function to send reminders (bypasses RLS for inserting notifications for other users)
+    try {
+      const { error } = await supabase.functions.invoke('send-reminders', {
+        body: { target_ids: targetIds, message: reminderMessage },
+      });
+      if (error) throw error;
+      setShowReminder(false);
+      toast({ title: 'Reminders sent 🔔' });
+    } catch (err: any) {
+      toast({ title: 'Reminder failed', description: err?.message || 'Try again', variant: 'destructive' });
     }
-
-    setShowReminder(false);
-    toast({ title: 'Reminders sent 🔔' });
   };
 
   return (
