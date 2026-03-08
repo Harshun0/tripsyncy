@@ -219,10 +219,10 @@ const Index: React.FC = () => {
       <Footer />
 
       {isLoggedIn && (
-        <>
+        <Suspense fallback={null}>
           <FloatingMessagesButton onClick={() => setShowMessagesPanel(!showMessagesPanel)} isOpen={showMessagesPanel} unreadCount={0} />
           <MessagesPanel isOpen={showMessagesPanel} onClose={() => setShowMessagesPanel(false)} />
-        </>
+        </Suspense>
       )}
 
       {showAIChat && <AIChatModal isOpen={showAIChat} onClose={() => setShowAIChat(false)} />}
