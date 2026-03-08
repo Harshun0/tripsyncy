@@ -420,7 +420,30 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile, onViewPost
                       <div className="relative" ref={shareMenuOpen === post.id ? shareRef : null}>
                         <button onClick={() => setShareMenuOpen(shareMenuOpen === post.id ? null : post.id)} className="hover:text-primary transition-colors"><Share2 className="w-6 h-6" /></button>
                         {shareMenuOpen === post.id && (
-                          <div className="absolute bottom-full left-0 mb-2 w-56 bg-background border border-border rounded-2xl shadow-xl z-50 animate-fade-in overflow-hidden p-2 space-y-1">
+                          <div className="absolute bottom-full left-0 mb-2 w-72 bg-background border border-border rounded-2xl shadow-xl z-50 animate-fade-in overflow-hidden p-2 space-y-1 max-h-80 overflow-y-auto">
+                            {/* Share with followers */}
+                            {acceptedFollowers.length > 0 && (
+                              <>
+                                <p className="px-3 py-1.5 text-xs font-semibold text-muted-foreground flex items-center gap-1.5"><Users className="w-3 h-3" />Send to</p>
+                                <div className="flex gap-2 px-2 pb-2 overflow-x-auto scrollbar-hide">
+                                  {acceptedFollowers.map(f => (
+                                    <button
+                                      key={f.id}
+                                      onClick={() => handleShareWithUser(post, f.id, f.display_name)}
+                                      className="flex flex-col items-center gap-1 min-w-[56px] p-1.5 rounded-xl hover:bg-muted transition-colors"
+                                    >
+                                      <img
+                                        src={f.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=50&h=50&fit=crop&crop=face'}
+                                        alt={f.display_name}
+                                        className="w-10 h-10 rounded-full object-cover"
+                                      />
+                                      <span className="text-[10px] text-foreground font-medium truncate w-full text-center">{f.display_name.split(' ')[0]}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                                <hr className="border-border" />
+                              </>
+                            )}
                             <button onClick={() => handleShare(post, 'whatsapp')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors"><Send className="w-4 h-4 text-green-500" />WhatsApp</button>
                             <button onClick={() => handleShare(post, 'twitter')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors"><Twitter className="w-4 h-4 text-accent" />Twitter / X</button>
                             <button onClick={() => handleShare(post, 'facebook')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors"><Facebook className="w-4 h-4 text-primary" />Facebook</button>
