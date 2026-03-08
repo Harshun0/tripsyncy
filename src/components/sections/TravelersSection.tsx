@@ -155,27 +155,32 @@ const TravelersSection: React.FC = () => {
     ? [travelerCoords.reduce((s, t) => s + t.coords[0], 0) / travelerCoords.length, travelerCoords.reduce((s, t) => s + t.coords[1], 0) / travelerCoords.length]
     : DEFAULT_CENTER;
 
-  const renderLeafletMap = (height: string, zoom: number) => (
-    <MapContainer center={mapCenter} zoom={zoom} style={{ height, width: '100%' }} scrollWheelZoom={true} zoomControl={false}>
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      {travelerCoords.map((t) => (
-        <Marker key={t.id} position={t.coords} icon={createAvatarIcon(t.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=face')}>
-          <Popup>
-            <div className="flex items-center gap-2 min-w-[140px]">
-              <img src={t.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=60&h=60&fit=crop&crop=face'} alt={t.display_name} className="w-10 h-10 rounded-full object-cover" />
-              <div>
-                <p className="font-semibold text-sm">{t.display_name}</p>
-                <p className="text-xs text-gray-500">{t.location || 'Nearby'}</p>
-              </div>
-            </div>
-          </Popup>
-        </Marker>
-      ))}
-    </MapContainer>
-  );
+  // Vanilla Leaflet map component
+  const LeafletMap = useCallback(({ height, zoom, id }: { height: string; zoom: number; id: string }) => {
+    const mapRef = useRef<HTMLDivElement>(null);
+    const mapInstanceRef = useRef<L.Map | null>(null);
+
+    useEffect(() => {
+      if (!mapRef.current || mapInstanceRef.current) return;
+      const map = L.map(mapRef.current, { center: mapCenter, zoom, scrollWheelZoom: true, zoomControl: false });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      }).addTo(map);
+
+      travelerCoords.forEach((t) => {
+        const icon = createAvatarIcon(t.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=face');
+        const marker = L.marker(t.coords, { icon }).addTo(map);
+        marker.bindPopup(`<div style="display:flex;align-items:center;gap:8px;min-width:140px;"><img src="${t.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=60&h=60&fit=crop&crop=face'}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;" /><div><p style="font-weight:600;font-size:14px;margin:0;">${t.display_name}</p><p style="font-size:12px;color:#888;margin:0;">${t.location || 'Nearby'}</p></div></div>`);
+      });
+
+      mapInstanceRef.current = map;
+      setTimeout(() => map.invalidateSize(), 100);
+
+      return () => { map.remove(); mapInstanceRef.current = null; };
+    }, []);
+
+    return <div ref={mapRef} style={{ height, width: '100%' }} />;
+  }, [mapCenter, travelerCoords]);
 
   return (
     <section className="py-20 lg:py-32 bg-background">
