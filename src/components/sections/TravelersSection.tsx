@@ -199,14 +199,18 @@ const TravelersSection: React.FC = () => {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8 mb-12">
-          <div className="lg:col-span-2 h-80 rounded-3xl overflow-hidden relative shadow-lg cursor-pointer group" onClick={() => setShowFullMap(true)}>
-            <LeafletMap height="100%" zoom={5} id="main-map" />
-            <div className="absolute top-4 right-4 z-[1000] w-10 h-10 bg-background/90 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg opacity-70 group-hover:opacity-100 transition-opacity">
-              <Maximize2 className="w-5 h-5 text-foreground" />
-            </div>
-            <div className="absolute bottom-4 left-4 right-4 z-[1000] bg-background/95 backdrop-blur-sm rounded-2xl px-4 py-3 shadow-lg">
-              <p className="text-sm text-foreground font-medium flex items-center gap-2"><Users className="w-4 h-4 text-primary" />{filteredTravelers.length} travelers nearby · <span className="text-primary text-xs">Click to expand</span></p>
-            </div>
+          <div className="lg:col-span-2 h-80 rounded-3xl overflow-hidden relative shadow-lg cursor-pointer group" onClick={() => setShowFullMap(true)} style={{ zIndex: showFullMap ? 0 : 1 }}>
+            {!showFullMap && <LeafletMap height="100%" zoom={5} id="main-map" />}
+            {!showFullMap && (
+              <div className="absolute top-4 right-4 z-[1000] w-10 h-10 bg-background/90 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg opacity-70 group-hover:opacity-100 transition-opacity">
+                <Maximize2 className="w-5 h-5 text-foreground" />
+              </div>
+            )}
+            {!showFullMap && (
+              <div className="absolute bottom-4 left-4 right-4 z-[1000] bg-background/95 backdrop-blur-sm rounded-2xl px-4 py-3 shadow-lg">
+                <p className="text-sm text-foreground font-medium flex items-center gap-2"><Users className="w-4 h-4 text-primary" />{filteredTravelers.length} travelers nearby · <span className="text-primary text-xs">Click to expand</span></p>
+              </div>
+            )}
           </div>
 
           <div className="space-y-4">
@@ -246,7 +250,7 @@ const TravelersSection: React.FC = () => {
 
       {/* Full Screen Map Modal */}
       {showFullMap && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={() => setShowFullMap(false)}>
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-all duration-300 animate-in fade-in" onClick={() => setShowFullMap(false)}>
           <div className="absolute inset-4 lg:inset-8 rounded-3xl overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <button onClick={() => setShowFullMap(false)} className="absolute top-4 right-4 z-[1000] w-10 h-10 bg-background/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg hover:bg-background transition-colors">
               <X className="w-5 h-5 text-foreground" />
