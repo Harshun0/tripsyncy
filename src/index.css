@@ -125,9 +125,27 @@
     @apply border-border;
   }
 
+  html {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Plus Jakarta Sans', sans-serif;
+    overflow-x: hidden;
+  }
+
+  img, video {
+    content-visibility: auto;
+  }
+
+  /* GPU-accelerate common animated elements */
+  .travel-card,
+  .glass-effect,
+  .animate-fade-in {
+    will-change: transform, opacity;
+    transform: translateZ(0);
   }
 }
 
