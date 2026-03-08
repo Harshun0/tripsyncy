@@ -78,7 +78,7 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ onNavigate, isLoggedI
                 <div className="w-full h-full bg-gradient-to-bl from-primary/5 to-transparent rounded-tr-3xl" />
               </div>
               
-              <div className={`w-14 h-14 rounded-2xl ${iconBg} flex items-center justify-center mb-5 shadow-md group-hover:scale-110 group-hover:-rotate-3 transition-all duration-400`}>
+              <div className={`w-14 h-14 rounded-2xl ${iconBg} flex items-center justify-center mb-5 shadow-md group-hover:scale-110 group-hover:-rotate-3 transition-all duration-300`}>
                 <Icon className="w-7 h-7 text-white" />
               </div>
               <h3 className="text-lg font-bold text-foreground mb-2.5 font-display">{title}</h3>
