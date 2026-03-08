@@ -18,20 +18,31 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTab, onTabCha
   return (
     <div className="bottom-nav">
       <div className="flex items-center justify-around">
-        {tabs.map(({ id, icon: Icon, label }) => (
-          <button
-            key={id}
-            onClick={() => onTabChange(id)}
-            className={`flex flex-col items-center gap-1 py-2 px-4 rounded-xl transition-all duration-300 ${
-              activeTab === id
-                ? 'gradient-primary text-primary-foreground shadow-md'
-                : 'text-muted-foreground hover:text-primary'
-            }`}
-          >
-            <Icon className="w-5 h-5" />
-            <span className="text-[10px] font-medium">{label}</span>
-          </button>
-        ))}
+        {tabs.map(({ id, icon: Icon, label }) => {
+          const isActive = activeTab === id;
+          return (
+            <button
+              key={id}
+              onClick={() => onTabChange(id)}
+              className={`relative flex flex-col items-center gap-0.5 py-2 px-4 rounded-2xl transition-all duration-300 ${
+                isActive
+                  ? 'text-primary'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {isActive && (
+                <span className="absolute -top-1 left-1/2 -translate-x-1/2 w-8 h-1 rounded-full gradient-primary" />
+              )}
+              <div className={`relative p-1.5 rounded-xl transition-all duration-300 ${isActive ? 'bg-primary/10 scale-110' : ''}`}>
+                <Icon className="w-5 h-5" />
+                {id === 'ai' && isActive && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-secondary animate-pulse" />
+                )}
+              </div>
+              <span className={`text-[10px] font-semibold transition-all ${isActive ? 'text-primary' : ''}`}>{label}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
