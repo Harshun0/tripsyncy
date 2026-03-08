@@ -212,7 +212,9 @@ const Index: React.FC = () => {
     <div className="min-h-screen bg-background">
       <Header activeSection={activeSection} onNavigate={handleNavigate} isLoggedIn={isLoggedIn} onLogin={handleLogin} onLogout={handleLogout} />
       <main>
-        {renderContent()}
+        <Suspense fallback={<SectionLoader />}>
+          {renderContent()}
+        </Suspense>
       </main>
       <Footer />
 
