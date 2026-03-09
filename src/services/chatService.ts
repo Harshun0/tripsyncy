@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-
+import { encryptMessage, decryptMessage } from '@/lib/encryption';
 export interface Conversation {
   id: string;
   title: string;
