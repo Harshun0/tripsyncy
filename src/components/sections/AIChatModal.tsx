@@ -116,7 +116,8 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
     setIsLoading(true);
 
     try {
-      await supabase.from('chat_messages').insert({ conversation_id: convoId, role: 'user', content: text });
+      const encryptedUserMsg = await encryptMessage(text, user.id);
+      await supabase.from('chat_messages').insert({ conversation_id: convoId, role: 'user', content: encryptedUserMsg });
 
       const history = [...messages, userMsg]
         .filter((m) => !m.isLoading)
