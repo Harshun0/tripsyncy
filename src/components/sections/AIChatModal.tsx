@@ -45,9 +45,19 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
   }, [user]);
 
   const loadMessages = useCallback(async (convoId: string) => {
+    if (!user) return;
     const { data } = await supabase.from('chat_messages').select('id,role,content').eq('conversation_id', convoId).order('created_at', { ascending: true });
-    if (data) setMessages((data as any[]).map((m) => ({ id: m.id, role: m.role, content: m.content })));
-  }, []);
+    if (data) {
+      const decrypted = await Promise.all(
+        (data as any[]).map(async (m) => ({
+          id: m.id,
+          role: m.role,
+          content: await decryptMessage(m.content, user.id),
+        }))
+      );
+      setMessages(decrypted);
+    }
+  }, [user]);
 
   useEffect(() => {
     if (isOpen && user) loadConversations();
