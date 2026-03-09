@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { encryptMessage, decryptMessage } from '@/lib/encryption';
 import ReactMarkdown from 'react-markdown';
 
 interface Message {
