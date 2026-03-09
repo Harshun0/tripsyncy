@@ -51,8 +51,9 @@ export const deleteConversation = async (conversationId: string) => {
   await supabase.from('chat_conversations').delete().eq('id', conversationId);
 };
 
-export const saveChatMessage = async (conversationId: string, role: string, content: string) => {
-  await supabase.from('chat_messages').insert({ conversation_id: conversationId, role, content });
+export const saveChatMessage = async (conversationId: string, role: string, content: string, userSecret: string) => {
+  const encrypted = await encryptMessage(content, userSecret);
+  await supabase.from('chat_messages').insert({ conversation_id: conversationId, role, content: encrypted });
 };
 
 export const updateConversationTitle = async (conversationId: string, title: string) => {
