@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { encryptMessage, decryptMessage } from '@/lib/encryption';
 import ReactMarkdown from 'react-markdown';
 
 interface Message {
@@ -44,9 +45,19 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
   }, [user]);
 
   const loadMessages = useCallback(async (convoId: string) => {
+    if (!user) return;
     const { data } = await supabase.from('chat_messages').select('id,role,content').eq('conversation_id', convoId).order('created_at', { ascending: true });
-    if (data) setMessages((data as any[]).map((m) => ({ id: m.id, role: m.role, content: m.content })));
-  }, []);
+    if (data) {
+      const decrypted = await Promise.all(
+        (data as any[]).map(async (m) => ({
+          id: m.id,
+          role: m.role,
+          content: await decryptMessage(m.content, user.id),
+        }))
+      );
+      setMessages(decrypted);
+    }
+  }, [user]);
 
   useEffect(() => {
     if (isOpen && user) loadConversations();
@@ -105,7 +116,8 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
     setIsLoading(true);
 
     try {
-      await supabase.from('chat_messages').insert({ conversation_id: convoId, role: 'user', content: text });
+      const encryptedUserMsg = await encryptMessage(text, user.id);
+      await supabase.from('chat_messages').insert({ conversation_id: convoId, role: 'user', content: encryptedUserMsg });
 
       const history = [...messages, userMsg]
         .filter((m) => !m.isLoading)
@@ -120,7 +132,8 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
 
       const aiContent = data?.content || data?.data || "I'm here to help with your travel plans!";
 
-      await supabase.from('chat_messages').insert({ conversation_id: convoId, role: 'assistant', content: aiContent });
+      const encryptedAiMsg = await encryptMessage(aiContent, user.id);
+      await supabase.from('chat_messages').insert({ conversation_id: convoId, role: 'assistant', content: encryptedAiMsg });
       if (messages.length === 0) {
         await supabase.from('chat_conversations').update({ title: text.slice(0, 50) }).eq('id', convoId);
       }
@@ -223,6 +236,11 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
           </div>
 
           <div className="p-6 bg-card border-t border-border">
+            <div className="flex justify-center mb-3">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-muted/50 rounded-full">
+                <span className="text-[11px] text-muted-foreground">🔒 Messages are end-to-end encrypted</span>
+              </div>
+            </div>
             <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-3">
               <div className="flex-1">
                 <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Ask TripSync AI anything..." className="input-field h-12" disabled={isLoading} autoFocus />

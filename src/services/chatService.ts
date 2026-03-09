@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-
+import { encryptMessage, decryptMessage } from '@/lib/encryption';
 export interface Conversation {
   id: string;
   title: string;
@@ -21,13 +21,21 @@ export const fetchConversations = async (userId: string): Promise<Conversation[]
   return (data || []) as Conversation[];
 };
 
-export const fetchChatMessages = async (conversationId: string): Promise<ChatMessage[]> => {
+export const fetchChatMessages = async (conversationId: string, userSecret: string): Promise<ChatMessage[]> => {
   const { data } = await supabase
     .from('chat_messages')
     .select('id,role,content')
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true });
-  return ((data || []) as any[]).map((m) => ({ id: m.id, role: m.role, content: m.content }));
+  const messages = (data || []) as any[];
+  const decrypted = await Promise.all(
+    messages.map(async (m) => ({
+      id: m.id,
+      role: m.role,
+      content: await decryptMessage(m.content, userSecret),
+    }))
+  );
+  return decrypted;
 };
 
 export const createConversation = async (userId: string, title: string) => {
@@ -43,8 +51,9 @@ export const deleteConversation = async (conversationId: string) => {
   await supabase.from('chat_conversations').delete().eq('id', conversationId);
 };
 
-export const saveChatMessage = async (conversationId: string, role: string, content: string) => {
-  await supabase.from('chat_messages').insert({ conversation_id: conversationId, role, content });
+export const saveChatMessage = async (conversationId: string, role: string, content: string, userSecret: string) => {
+  const encrypted = await encryptMessage(content, userSecret);
+  await supabase.from('chat_messages').insert({ conversation_id: conversationId, role, content: encrypted });
 };
 
 export const updateConversationTitle = async (conversationId: string, title: string) => {
