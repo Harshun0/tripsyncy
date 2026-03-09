@@ -132,7 +132,8 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
 
       const aiContent = data?.content || data?.data || "I'm here to help with your travel plans!";
 
-      await supabase.from('chat_messages').insert({ conversation_id: convoId, role: 'assistant', content: aiContent });
+      const encryptedAiMsg = await encryptMessage(aiContent, user.id);
+      await supabase.from('chat_messages').insert({ conversation_id: convoId, role: 'assistant', content: encryptedAiMsg });
       if (messages.length === 0) {
         await supabase.from('chat_conversations').update({ title: text.slice(0, 50) }).eq('id', convoId);
       }
