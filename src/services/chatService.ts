@@ -21,13 +21,21 @@ export const fetchConversations = async (userId: string): Promise<Conversation[]
   return (data || []) as Conversation[];
 };
 
-export const fetchChatMessages = async (conversationId: string): Promise<ChatMessage[]> => {
+export const fetchChatMessages = async (conversationId: string, userSecret: string): Promise<ChatMessage[]> => {
   const { data } = await supabase
     .from('chat_messages')
     .select('id,role,content')
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true });
-  return ((data || []) as any[]).map((m) => ({ id: m.id, role: m.role, content: m.content }));
+  const messages = (data || []) as any[];
+  const decrypted = await Promise.all(
+    messages.map(async (m) => ({
+      id: m.id,
+      role: m.role,
+      content: await decryptMessage(m.content, userSecret),
+    }))
+  );
+  return decrypted;
 };
 
 export const createConversation = async (userId: string, title: string) => {
