@@ -223,6 +223,11 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
           </div>
 
           <div className="p-6 bg-card border-t border-border">
+            <div className="flex justify-center mb-3">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-muted/50 rounded-full">
+                <span className="text-[11px] text-muted-foreground">🔒 Messages are end-to-end encrypted</span>
+              </div>
+            </div>
             <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-3">
               <div className="flex-1">
                 <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Ask TripSync AI anything..." className="input-field h-12" disabled={isLoading} autoFocus />

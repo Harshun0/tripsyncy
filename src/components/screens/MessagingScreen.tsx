@@ -75,6 +75,14 @@ const MessagingScreen: React.FC<MessagingScreenProps> = ({ onBack, chatWithId = 
         </p>
       </div>
 
+      {/* E2E Encryption Badge */}
+      <div className="mx-4 mt-2 flex justify-center">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-muted/50 rounded-full">
+          <Shield className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="text-[11px] text-muted-foreground">Messages are end-to-end encrypted</span>
+        </div>
+      </div>
+
       {/* Match Score Badge */}
       <div className="mx-4 mt-3 flex justify-center">
         <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary/10 to-accent/10 rounded-full">
