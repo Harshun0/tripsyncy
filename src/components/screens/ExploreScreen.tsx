@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, Filter, Users, BadgeCheck, Heart } from 'lucide-react';
+import { MapPin, Filter, Users, BadgeCheck, Heart, Sparkles } from 'lucide-react';
 import { dummyProfiles, TravelerProfile } from '@/data/dummyProfiles';
 
 const ExploreScreen: React.FC = () => {
@@ -17,8 +17,13 @@ const ExploreScreen: React.FC = () => {
       {/* Header */}
       <div className="sticky top-0 z-30 glass-effect px-4 py-3">
         <div className="flex items-center justify-between mb-3">
-          <h1 className="text-xl font-bold text-foreground">Nearby Travelers</h1>
-          <button className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 gradient-primary rounded-xl flex items-center justify-center">
+              <Users className="w-4 h-4 text-primary-foreground" />
+            </div>
+            <h1 className="text-xl font-bold text-foreground font-display">Nearby Travelers</h1>
+          </div>
+          <button className="w-10 h-10 rounded-full bg-card border border-border/50 flex items-center justify-center shadow-sm hover:shadow-md transition-shadow">
             <Filter className="w-5 h-5 text-foreground" />
           </button>
         </div>
@@ -29,10 +34,10 @@ const ExploreScreen: React.FC = () => {
             <button
               key={radius}
               onClick={() => setSelectedRadius(radius)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
                 selectedRadius === radius
-                  ? 'gradient-primary text-primary-foreground shadow-md'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  ? 'gradient-primary text-primary-foreground shadow-glow scale-[1.02]'
+                  : 'bg-card border border-border/50 text-muted-foreground hover:border-primary/30 hover:text-foreground'
               }`}
             >
               {radius} km
@@ -42,12 +47,15 @@ const ExploreScreen: React.FC = () => {
       </div>
 
       {/* Map Preview */}
-      <div className="mx-4 mt-4 h-48 rounded-2xl overflow-hidden relative bg-gradient-to-br from-ocean-light to-teal-light">
+      <div className="mx-4 mt-4 h-48 rounded-3xl overflow-hidden relative bg-gradient-to-br from-teal-light via-ocean-light to-sand border border-border/30 shadow-sm">
+        {/* Decorative pattern */}
+        <div className="absolute inset-0 pattern-dots opacity-30" />
+        
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="relative">
             {/* Center marker (You) */}
-            <div className="w-12 h-12 gradient-primary rounded-full flex items-center justify-center shadow-glow animate-pulse-slow">
-              <MapPin className="w-6 h-6 text-white" />
+            <div className="w-14 h-14 gradient-primary rounded-2xl flex items-center justify-center shadow-glow animate-pulse-slow rotate-[8deg]">
+              <MapPin className="w-7 h-7 text-primary-foreground -rotate-[8deg]" />
             </div>
             
             {/* Other markers */}
@@ -61,13 +69,13 @@ const ExploreScreen: React.FC = () => {
               return (
                 <div
                   key={traveler.id}
-                  className="absolute w-8 h-8 rounded-full border-2 border-white shadow-lg overflow-hidden"
+                  className="absolute w-9 h-9 rounded-xl border-[2.5px] border-background shadow-md overflow-hidden hover:scale-110 transition-transform"
                   style={{
                     transform: `translate(${x}px, ${y}px)`,
                     left: '50%',
                     top: '50%',
-                    marginLeft: '-16px',
-                    marginTop: '-16px',
+                    marginLeft: '-18px',
+                    marginTop: '-18px',
                   }}
                 >
                   <img src={traveler.avatar} alt={traveler.name} className="w-full h-full object-cover" />
@@ -77,31 +85,41 @@ const ExploreScreen: React.FC = () => {
           </div>
         </div>
         
-        <div className="absolute bottom-3 left-3 right-3 bg-white/90 backdrop-blur-sm rounded-xl px-3 py-2">
-          <p className="text-xs text-foreground font-medium flex items-center gap-1">
-            <Users className="w-3 h-3 text-primary" />
-            {filteredTravelers.length} travelers within {selectedRadius} km
+        <div className="absolute bottom-3 left-3 right-3 bg-card/90 backdrop-blur-md rounded-2xl px-4 py-2.5 border border-border/30">
+          <p className="text-xs text-foreground font-medium flex items-center gap-1.5">
+            <div className="w-5 h-5 gradient-primary rounded-lg flex items-center justify-center">
+              <Users className="w-3 h-3 text-primary-foreground" />
+            </div>
+            <span>{filteredTravelers.length} travelers within {selectedRadius} km</span>
           </p>
         </div>
       </div>
 
       {/* Travelers List */}
       <div className="px-4 mt-6 space-y-3">
-        <h2 className="text-lg font-semibold text-foreground">Travelers Near You</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-foreground font-display">Travelers Near You</h2>
+          <div className="flex items-center gap-1 text-xs text-primary font-medium">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>{filteredTravelers.length} found</span>
+          </div>
+        </div>
         
-        {filteredTravelers.map((traveler) => (
-          <div key={traveler.id} className="travel-card flex gap-4">
+        {filteredTravelers.map((traveler, idx) => (
+          <div key={traveler.id} className="travel-card-nature flex gap-4 animate-fade-in" style={{ animationDelay: `${idx * 80}ms` }}>
             {/* Avatar */}
             <div className="relative flex-shrink-0">
-              <img
-                src={traveler.avatar}
-                alt={traveler.name}
-                className="w-16 h-16 rounded-xl object-cover"
-              />
-              {traveler.isOnline && <span className="status-online" />}
+              <div className="p-[2px] gradient-primary rounded-2xl">
+                <img
+                  src={traveler.avatar}
+                  alt={traveler.name}
+                  className="w-16 h-16 rounded-[14px] object-cover border-2 border-background"
+                />
+              </div>
+              {traveler.isOnline && <span className="status-online !bottom-0.5 !right-0.5" />}
               {traveler.verified && (
-                <div className="absolute -top-1 -right-1 w-5 h-5 gradient-primary rounded-full flex items-center justify-center">
-                  <BadgeCheck className="w-3 h-3 text-white" />
+                <div className="absolute -top-1 -right-1 w-5 h-5 gradient-primary rounded-lg flex items-center justify-center shadow-sm">
+                  <BadgeCheck className="w-3 h-3 text-primary-foreground" />
                 </div>
               )}
             </div>
@@ -110,17 +128,17 @@ const ExploreScreen: React.FC = () => {
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-foreground truncate">{traveler.name}, {traveler.age}</h3>
-                <span className="text-xs text-primary font-medium">{traveler.distance} km</span>
+                <span className="text-xs gradient-primary text-primary-foreground px-2.5 py-1 rounded-lg font-semibold shadow-sm">{traveler.distance} km</span>
               </div>
               
               <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5">
-                <MapPin className="w-3 h-3" />
+                <MapPin className="w-3 h-3 text-primary" />
                 {traveler.location}
               </p>
               
-              <div className="flex flex-wrap gap-1 mt-2">
+              <div className="flex flex-wrap gap-1.5 mt-2">
                 {traveler.interests.slice(0, 3).map((interest) => (
-                  <span key={interest} className="chip chip-primary text-xs py-1">
+                  <span key={interest} className="text-[11px] px-2.5 py-1 bg-primary/8 text-primary rounded-lg font-medium">
                     {interest}
                   </span>
                 ))}
@@ -129,16 +147,16 @@ const ExploreScreen: React.FC = () => {
               {/* Match Score */}
               {traveler.matchScore && (
                 <div className="flex items-center justify-between mt-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-20 h-2 bg-muted rounded-full overflow-hidden">
                       <div 
-                        className="h-full gradient-primary rounded-full transition-all"
+                        className="h-full gradient-primary rounded-full transition-all duration-500"
                         style={{ width: `${traveler.matchScore}%` }}
                       />
                     </div>
-                    <span className="text-xs font-semibold text-primary">{traveler.matchScore}% Match</span>
+                    <span className="text-xs font-bold text-primary">{traveler.matchScore}%</span>
                   </div>
-                  <button className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center text-secondary hover:bg-secondary/20 transition-colors">
+                  <button className="w-9 h-9 rounded-xl bg-secondary/10 flex items-center justify-center text-secondary hover:bg-secondary/20 hover:scale-105 active:scale-95 transition-all">
                     <Heart className="w-4 h-4" />
                   </button>
                 </div>

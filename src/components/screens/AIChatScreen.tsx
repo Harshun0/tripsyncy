@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, Send, Sparkles, MapPin, Users, Calendar, Wallet, AlertTriangle, WifiOff, Mic } from 'lucide-react';
+import { ArrowLeft, Send, Sparkles, MapPin, Users, Calendar, Wallet, AlertTriangle, WifiOff, Mic, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface Message {
@@ -127,24 +127,24 @@ const AIChatScreen: React.FC<AIChatScreenProps> = ({ onClose }) => {
   return (
     <div className="h-full flex flex-col bg-background">
       {/* Header */}
-      <div className="glass-effect px-4 py-3 flex items-center gap-3 border-b border-border">
-        <button onClick={onClose} className="p-2 -ml-2 hover:bg-muted rounded-full transition-colors">
+      <div className="glass-effect px-4 py-3 flex items-center gap-3 border-b border-border/50">
+        <button onClick={onClose} className="p-2 -ml-2 hover:bg-muted rounded-xl transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <div className="w-10 h-10 gradient-primary rounded-full flex items-center justify-center">
-          <Sparkles className="w-5 h-5 text-white" />
+        <div className="w-10 h-10 gradient-primary rounded-2xl flex items-center justify-center shadow-glow">
+          <Bot className="w-5 h-5 text-primary-foreground" />
         </div>
         <div className="flex-1">
-          <h2 className="font-semibold text-foreground">TripSync AI</h2>
+          <h2 className="font-semibold text-foreground font-display">TripSync AI</h2>
           <p className="text-xs text-success flex items-center gap-1">
-            <span className="w-2 h-2 bg-success rounded-full" />
+            <span className="w-2 h-2 bg-success rounded-full animate-pulse" />
             Always online
           </p>
         </div>
       </div>
 
       {/* Quick Actions */}
-      <div className="px-4 py-3 bg-muted/30">
+      <div className="px-4 py-3 bg-gradient-to-b from-muted/30 to-transparent">
         <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
           {[
             { icon: Calendar, label: 'Plan Trip' },
@@ -157,10 +157,10 @@ const AIChatScreen: React.FC<AIChatScreenProps> = ({ onClose }) => {
             <button
               key={label}
               onClick={() => handleQuickAction(label)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-card rounded-full text-sm font-medium whitespace-nowrap shadow-sm hover:shadow-md transition-shadow"
+              className="flex items-center gap-1.5 px-4 py-2 bg-card rounded-xl text-sm font-medium whitespace-nowrap border border-border/40 hover:border-primary/30 hover:shadow-sm transition-all duration-300"
             >
               <Icon className="w-4 h-4 text-primary" />
-              {label}
+              <span className="text-foreground">{label}</span>
             </button>
           ))}
         </div>
@@ -176,19 +176,19 @@ const AIChatScreen: React.FC<AIChatScreenProps> = ({ onClose }) => {
             <div
               className={`max-w-[85%] rounded-2xl px-4 py-3 ${
                 message.type === 'user'
-                  ? 'gradient-primary text-primary-foreground rounded-br-md'
-                  : 'bg-card shadow-md rounded-bl-md'
+                  ? 'gradient-primary text-primary-foreground rounded-br-md shadow-sm'
+                  : 'bg-card border border-border/30 shadow-sm rounded-bl-md'
               }`}
             >
               {message.type === 'ai' && (
                 <div className="flex items-center gap-2 mb-2">
-                  <div className="w-6 h-6 gradient-primary rounded-full flex items-center justify-center">
-                    <Sparkles className="w-3 h-3 text-white" />
+                  <div className="w-6 h-6 gradient-primary rounded-lg flex items-center justify-center">
+                    <Bot className="w-3 h-3 text-primary-foreground" />
                   </div>
-                  <span className="text-xs font-medium text-primary">TripSync AI</span>
+                  <span className="text-xs font-semibold text-primary">TripSync AI</span>
                 </div>
               )}
-              <p className={`text-sm whitespace-pre-line ${message.type === 'ai' ? 'text-foreground' : ''}`}>
+              <p className={`text-sm whitespace-pre-line leading-relaxed ${message.type === 'ai' ? 'text-foreground' : ''}`}>
                 {message.content}
               </p>
               
@@ -198,7 +198,7 @@ const AIChatScreen: React.FC<AIChatScreenProps> = ({ onClose }) => {
                     <button
                       key={label}
                       onClick={() => handleQuickAction(label)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 rounded-full text-xs font-medium text-primary hover:bg-primary/20 transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/8 rounded-xl text-xs font-semibold text-primary hover:bg-primary/15 border border-primary/10 transition-all duration-200"
                     >
                       <Icon className="w-3 h-3" />
                       {label}
@@ -216,12 +216,12 @@ const AIChatScreen: React.FC<AIChatScreenProps> = ({ onClose }) => {
         
         {isTyping && (
           <div className="flex justify-start animate-fade-in">
-            <div className="bg-card shadow-md rounded-2xl rounded-bl-md px-4 py-3">
+            <div className="bg-card border border-border/30 shadow-sm rounded-2xl rounded-bl-md px-4 py-3">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 gradient-primary rounded-full flex items-center justify-center">
-                  <Sparkles className="w-3 h-3 text-white" />
+                <div className="w-6 h-6 gradient-primary rounded-lg flex items-center justify-center">
+                  <Bot className="w-3 h-3 text-primary-foreground" />
                 </div>
-                <div className="flex gap-1">
+                <div className="flex gap-1.5">
                   <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                   <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                   <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
@@ -235,9 +235,9 @@ const AIChatScreen: React.FC<AIChatScreenProps> = ({ onClose }) => {
       </div>
 
       {/* Input */}
-      <div className="p-4 bg-card border-t border-border shadow-chat">
+      <div className="p-4 bg-card border-t border-border/50 shadow-chat">
         <div className="flex items-center gap-2">
-          <button className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-primary">
+          <button className="w-10 h-10 rounded-xl bg-muted/50 border border-border/30 flex items-center justify-center text-primary hover:bg-primary/10 transition-colors">
             <Mic className="w-5 h-5" />
           </button>
           <div className="flex-1 relative">
@@ -247,13 +247,13 @@ const AIChatScreen: React.FC<AIChatScreenProps> = ({ onClose }) => {
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               placeholder="Ask TripSync AI..."
-              className="input-field pr-12"
+              className="w-full px-4 py-3 pr-4 rounded-2xl bg-muted/30 border border-border/50 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-300 outline-none text-sm"
             />
           </div>
           <Button
             onClick={handleSend}
             disabled={!inputValue.trim()}
-            className="w-10 h-10 p-0 rounded-full gradient-primary shadow-glow"
+            className="w-10 h-10 p-0 rounded-xl gradient-primary shadow-glow hover:shadow-xl transition-shadow"
           >
             <Send className="w-5 h-5" />
           </Button>
