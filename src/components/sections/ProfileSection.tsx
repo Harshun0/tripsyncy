@@ -293,8 +293,8 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div className="travel-card p-6 text-center"><p className="text-3xl font-bold text-foreground">{tripCount}</p><p className="text-muted-foreground">Trips</p></div>
-              <div className="travel-card p-6 text-center"><p className="text-3xl font-bold text-foreground">{followerCount}</p><p className="text-muted-foreground">Followers</p></div>
-              <div className="travel-card p-6 text-center"><p className="text-3xl font-bold text-foreground">{followingCount}</p><p className="text-muted-foreground">Following</p></div>
+              <button onClick={() => { setFollowersModalMode('followers'); setShowFollowersModal(true); }} className="travel-card p-6 text-center hover:shadow-lg transition-shadow cursor-pointer"><p className="text-3xl font-bold text-foreground">{followerCount}</p><p className="text-muted-foreground">Followers</p></button>
+              <button onClick={() => { setFollowersModalMode('following'); setShowFollowersModal(true); }} className="travel-card p-6 text-center hover:shadow-lg transition-shadow cursor-pointer"><p className="text-3xl font-bold text-foreground">{followingCount}</p><p className="text-muted-foreground">Following</p></button>
             </div>
           </div>
 
