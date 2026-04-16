@@ -13,7 +13,7 @@ interface UserProfileScreenProps {
   onViewUserProfile?: (userId: string) => void;
 }
 
-const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, onBack, onOpenMessages }) => {
+const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, onBack, onOpenMessages, onViewUserProfile }) => {
   const { user } = useAuth();
   const [profile, setProfile] = useState<any>(null);
   const [posts, setPosts] = useState<any[]>([]);
