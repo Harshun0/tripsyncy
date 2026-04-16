@@ -172,6 +172,18 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
     };
   }, [isOpen, user, selectedChat]);
 
+  // Auto-open chat with target user when specified
+  useEffect(() => {
+    if (!isOpen || !user || !targetUserId) return;
+    const autoOpen = async () => {
+      const conversationId = await findOrCreateConversation(targetUserId);
+      if (conversationId) {
+        await openChat(conversationId);
+      }
+    };
+    autoOpen();
+  }, [isOpen, targetUserId, user]);
+
   const handleAcceptRequest = async (requestId: string) => {
     const request = tripRequests.find((r) => r.id === requestId);
     if (!request || !user) return;
