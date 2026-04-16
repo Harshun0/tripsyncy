@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Settings, Edit2, MapPin, BadgeCheck, Wallet, Heart, Mountain, Utensils, Compass, Sunrise, Camera, Share2, MessageCircle, LogOut, Copy, Facebook, Twitter, Send, Plus, ImagePlus, Loader2, Trash2, Pencil, ChevronLeft, ChevronRight, MoreVertical, X, Lock, Globe } from 'lucide-react';
+import FollowersModal from '@/components/modals/FollowersModal';
 import { Button } from '@/components/ui/button';
 import ProfileSettingsModal from '@/components/modals/ProfileSettingsModal';
 import EditProfileModal from '@/components/modals/EditProfileModal';
@@ -11,6 +12,7 @@ import { compressImage } from '@/lib/imageCompression';
 interface ProfileSectionProps {
   onLogout?: () => void;
   onOpenMessages?: () => void;
+  onViewUserProfile?: (userId: string) => void;
 }
 
 const LOCATION_SUGGESTIONS = [
@@ -49,7 +51,7 @@ const LOCATION_SUGGESTIONS = [
   'Rio de Janeiro, Brazil', 'Cancun, Mexico',
 ];
 
-const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessages }) => {
+const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessages, onViewUserProfile }) => {
   const { user, profile, updateProfile, signOut, refreshProfile } = useAuth();
   const [showSettings, setShowSettings] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -73,6 +75,8 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
   const shareRef = useRef<HTMLDivElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const [showFollowersModal, setShowFollowersModal] = useState(false);
+  const [followersModalMode, setFollowersModalMode] = useState<'followers' | 'following'>('followers');
 
   const fetchMyPosts = async () => {
     if (!user) return;
@@ -289,8 +293,8 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div className="travel-card p-6 text-center"><p className="text-3xl font-bold text-foreground">{tripCount}</p><p className="text-muted-foreground">Trips</p></div>
-              <div className="travel-card p-6 text-center"><p className="text-3xl font-bold text-foreground">{followerCount}</p><p className="text-muted-foreground">Followers</p></div>
-              <div className="travel-card p-6 text-center"><p className="text-3xl font-bold text-foreground">{followingCount}</p><p className="text-muted-foreground">Following</p></div>
+              <button onClick={() => { setFollowersModalMode('followers'); setShowFollowersModal(true); }} className="travel-card p-6 text-center hover:shadow-lg transition-shadow cursor-pointer"><p className="text-3xl font-bold text-foreground">{followerCount}</p><p className="text-muted-foreground">Followers</p></button>
+              <button onClick={() => { setFollowersModalMode('following'); setShowFollowersModal(true); }} className="travel-card p-6 text-center hover:shadow-lg transition-shadow cursor-pointer"><p className="text-3xl font-bold text-foreground">{followingCount}</p><p className="text-muted-foreground">Following</p></button>
             </div>
           </div>
 
@@ -461,6 +465,16 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
             </div>
           </div>
         </div>
+      )}
+
+      {user && (
+        <FollowersModal
+          isOpen={showFollowersModal}
+          onClose={() => setShowFollowersModal(false)}
+          userId={user.id}
+          mode={followersModalMode}
+          onViewProfile={(id) => onViewUserProfile?.(id)}
+        />
       )}
     </section>
   );

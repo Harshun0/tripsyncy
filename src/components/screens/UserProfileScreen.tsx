@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { MapPin, BadgeCheck, UserPlus, UserCheck, MessageCircle, ArrowLeft, Loader2, Lock, Globe, Users } from 'lucide-react';
+import FollowersModal from '@/components/modals/FollowersModal';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,9 +10,10 @@ interface UserProfileScreenProps {
   userId: string;
   onBack: () => void;
   onOpenMessages?: () => void;
+  onViewUserProfile?: (userId: string) => void;
 }
 
-const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, onBack, onOpenMessages }) => {
+const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, onBack, onOpenMessages, onViewUserProfile }) => {
   const { user } = useAuth();
   const [profile, setProfile] = useState<any>(null);
   const [posts, setPosts] = useState<any[]>([]);
@@ -21,7 +23,8 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, onBack, o
   const [postCount, setPostCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [canViewPosts, setCanViewPosts] = useState(true);
-
+  const [showFollowersModal, setShowFollowersModal] = useState(false);
+  const [followersModalMode, setFollowersModalMode] = useState<'followers' | 'following'>('followers');
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -164,8 +167,8 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, onBack, o
 
             <div className="grid grid-cols-3 gap-4">
               <div className="travel-card p-6 text-center"><p className="text-3xl font-bold text-foreground">{postCount}</p><p className="text-muted-foreground">Posts</p></div>
-              <div className="travel-card p-6 text-center"><p className="text-3xl font-bold text-foreground">{followerCount}</p><p className="text-muted-foreground">Followers</p></div>
-              <div className="travel-card p-6 text-center"><p className="text-3xl font-bold text-foreground">{followingCount}</p><p className="text-muted-foreground">Following</p></div>
+              <button onClick={() => { setFollowersModalMode('followers'); setShowFollowersModal(true); }} className="travel-card p-6 text-center hover:shadow-lg transition-shadow cursor-pointer"><p className="text-3xl font-bold text-foreground">{followerCount}</p><p className="text-muted-foreground">Followers</p></button>
+              <button onClick={() => { setFollowersModalMode('following'); setShowFollowersModal(true); }} className="travel-card p-6 text-center hover:shadow-lg transition-shadow cursor-pointer"><p className="text-3xl font-bold text-foreground">{followingCount}</p><p className="text-muted-foreground">Following</p></button>
             </div>
 
             {user?.id !== userId && (
@@ -241,6 +244,13 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, onBack, o
           </div>
         </div>
       </div>
+      <FollowersModal
+        isOpen={showFollowersModal}
+        onClose={() => setShowFollowersModal(false)}
+        userId={userId}
+        mode={followersModalMode}
+        onViewProfile={(id) => { setShowFollowersModal(false); onViewUserProfile?.(id); }}
+      />
     </section>
   );
 };
