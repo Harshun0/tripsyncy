@@ -43,9 +43,20 @@ const Index: React.FC = () => {
   const [showAIChat, setShowAIChat] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showMessagesPanel, setShowMessagesPanel] = useState(false);
+  const [messageTargetUserId, setMessageTargetUserId] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [viewUserId, setViewUserId] = useState<string | null>(null);
   const [viewPostId, setViewPostId] = useState<string | null>(null);
+
+  const openMessagesWithUser = (targetUserId?: string) => {
+    if (targetUserId) setMessageTargetUserId(targetUserId);
+    setShowMessagesPanel(true);
+  };
+
+  const closeMessages = () => {
+    setShowMessagesPanel(false);
+    setMessageTargetUserId(null);
+  };
 
   const [onboarding, setOnboarding] = useState({
     display_name: '',
@@ -104,7 +115,7 @@ const Index: React.FC = () => {
   const handleLogout = async () => {
     await signOut();
     setActiveSection('landing');
-    setShowMessagesPanel(false);
+    closeMessages();
     toast({ title: 'Logged out successfully 👋' });
   };
 
@@ -166,7 +177,7 @@ const Index: React.FC = () => {
 
   const renderContent = () => {
     if (activeSection === 'user-profile' && viewUserId) {
-      return <div className="pt-20"><UserProfileScreen userId={viewUserId} onBack={() => handleNavigate('home')} onOpenMessages={() => setShowMessagesPanel(true)} /></div>;
+      return <div className="pt-20"><UserProfileScreen userId={viewUserId} onBack={() => handleNavigate('home')} onOpenMessages={() => openMessagesWithUser(viewUserId)} /></div>;
     }
 
     switch (activeSection) {
@@ -184,7 +195,7 @@ const Index: React.FC = () => {
       case 'home':
         return <div className="pt-20"><FeedSection onViewUserProfile={handleViewUserProfile} onViewPost={handleViewPost} /></div>;
       case 'explore':
-        return <div className="pt-20"><TravelersSection /></div>;
+        return <div className="pt-20"><TravelersSection onMessageUser={(uid: string) => openMessagesWithUser(uid)} /></div>;
       case 'itinerary':
         return <div className="pt-20"><ItinerarySection /></div>;
       case 'expenses':
@@ -192,7 +203,7 @@ const Index: React.FC = () => {
       case 'search':
         return <div className="pt-20"><SearchSection /></div>;
       case 'profile':
-        return <div className="pt-20"><ProfileSection onLogout={handleLogout} onOpenMessages={() => setShowMessagesPanel(true)} /></div>;
+        return <div className="pt-20"><ProfileSection onLogout={handleLogout} onOpenMessages={() => openMessagesWithUser()} /></div>;
       case 'create-trip':
         return <div className="pt-20"><TripCreateScreen onBack={() => handleNavigate('home')} /></div>;
       case 'liked-posts':
@@ -231,8 +242,8 @@ const Index: React.FC = () => {
 
       {isLoggedIn && (
         <Suspense fallback={null}>
-          <FloatingMessagesButton onClick={() => setShowMessagesPanel(!showMessagesPanel)} isOpen={showMessagesPanel} unreadCount={0} />
-          <MessagesPanel isOpen={showMessagesPanel} onClose={() => setShowMessagesPanel(false)} />
+          <FloatingMessagesButton onClick={() => { if (showMessagesPanel) closeMessages(); else openMessagesWithUser(); }} isOpen={showMessagesPanel} unreadCount={0} />
+          <MessagesPanel isOpen={showMessagesPanel} onClose={closeMessages} targetUserId={messageTargetUserId} />
         </Suspense>
       )}
 

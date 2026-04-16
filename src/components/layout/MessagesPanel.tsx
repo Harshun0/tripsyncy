@@ -8,6 +8,7 @@ import { toast } from '@/hooks/use-toast';
 interface MessagesPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  targetUserId?: string | null;
 }
 
 interface ChatMessage {
@@ -36,7 +37,7 @@ interface ChatListItem {
   timestamp: string;
 }
 
-const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose }) => {
+const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUserId }) => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'messages' | 'requests'>('messages');
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
@@ -170,6 +171,18 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose }) => {
       supabase.removeChannel(channel);
     };
   }, [isOpen, user, selectedChat]);
+
+  // Auto-open chat with target user when specified
+  useEffect(() => {
+    if (!isOpen || !user || !targetUserId) return;
+    const autoOpen = async () => {
+      const conversationId = await findOrCreateConversation(targetUserId);
+      if (conversationId) {
+        await openChat(conversationId);
+      }
+    };
+    autoOpen();
+  }, [isOpen, targetUserId, user]);
 
   const handleAcceptRequest = async (requestId: string) => {
     const request = tripRequests.find((r) => r.id === requestId);

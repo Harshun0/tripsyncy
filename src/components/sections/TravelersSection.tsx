@@ -96,7 +96,11 @@ function createAvatarIcon(avatarUrl: string) {
   });
 }
 
-const TravelersSection: React.FC = () => {
+interface TravelersSectionProps {
+  onMessageUser?: (userId: string) => void;
+}
+
+const TravelersSection: React.FC<TravelersSectionProps> = ({ onMessageUser }) => {
   const { user } = useAuth();
   const [selectedRadius, setSelectedRadius] = useState('25');
   const [travelers, setTravelers] = useState<TravelerProfile[]>([]);
@@ -238,7 +242,7 @@ const TravelersSection: React.FC = () => {
                 </div>
                 <div className="flex flex-wrap gap-1.5 mb-4">{(traveler.interests || []).slice(0, 4).map((interest) => <span key={interest} className="chip chip-primary text-xs">{interest}</span>)}</div>
                 <div className="flex items-center justify-between pt-4 border-t border-border">
-                  <Button size="sm" variant="outline" className="rounded-full h-9 px-3"><MessageCircle className="w-4 h-4 mr-1" />Message</Button>
+                  <Button size="sm" variant="outline" className="rounded-full h-9 px-3" onClick={() => onMessageUser?.(traveler.id)}><MessageCircle className="w-4 h-4 mr-1" />Message</Button>
                   <Button size="sm" className={`rounded-full h-9 px-3 ${status === 'accepted' ? 'bg-muted text-foreground' : status === 'pending' ? 'bg-secondary text-secondary-foreground' : 'gradient-primary text-white'}`} onClick={() => handleFollow(traveler.id, traveler.display_name)}>
                     {status === 'accepted' ? <><UserCheck className="w-4 h-4 mr-1" />Following</> : status === 'pending' ? <><UserPlus className="w-4 h-4 mr-1" />Requested</> : <><UserPlus className="w-4 h-4 mr-1" />Follow</>}
                   </Button>
