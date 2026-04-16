@@ -177,7 +177,7 @@ const Index: React.FC = () => {
 
   const renderContent = () => {
     if (activeSection === 'user-profile' && viewUserId) {
-      return <div className="pt-20"><UserProfileScreen userId={viewUserId} onBack={() => handleNavigate('home')} onOpenMessages={() => openMessagesWithUser(viewUserId)} /></div>;
+      return <div className="pt-20"><UserProfileScreen userId={viewUserId} onBack={() => handleNavigate('home')} onOpenMessages={() => openMessagesWithUser(viewUserId)} onViewUserProfile={handleViewUserProfile} /></div>;
     }
 
     switch (activeSection) {

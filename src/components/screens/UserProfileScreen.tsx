@@ -244,6 +244,13 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, onBack, o
           </div>
         </div>
       </div>
+      <FollowersModal
+        isOpen={showFollowersModal}
+        onClose={() => setShowFollowersModal(false)}
+        userId={userId}
+        mode={followersModalMode}
+        onViewProfile={(id) => { setShowFollowersModal(false); onViewUserProfile?.(id); }}
+      />
     </section>
   );
 };
