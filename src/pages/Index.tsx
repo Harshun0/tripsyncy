@@ -195,7 +195,7 @@ const Index: React.FC = () => {
       case 'home':
         return <div className="pt-20"><FeedSection onViewUserProfile={handleViewUserProfile} onViewPost={handleViewPost} /></div>;
       case 'explore':
-        return <div className="pt-20"><TravelersSection /></div>;
+        return <div className="pt-20"><TravelersSection onMessageUser={(uid: string) => openMessagesWithUser(uid)} /></div>;
       case 'itinerary':
         return <div className="pt-20"><ItinerarySection /></div>;
       case 'expenses':
