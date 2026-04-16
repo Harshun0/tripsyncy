@@ -203,7 +203,7 @@ const Index: React.FC = () => {
       case 'search':
         return <div className="pt-20"><SearchSection /></div>;
       case 'profile':
-        return <div className="pt-20"><ProfileSection onLogout={handleLogout} onOpenMessages={() => openMessagesWithUser()} /></div>;
+        return <div className="pt-20"><ProfileSection onLogout={handleLogout} onOpenMessages={() => openMessagesWithUser()} onViewUserProfile={handleViewUserProfile} /></div>;
       case 'create-trip':
         return <div className="pt-20"><TripCreateScreen onBack={() => handleNavigate('home')} /></div>;
       case 'liked-posts':

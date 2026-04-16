@@ -11,6 +11,7 @@ import { compressImage } from '@/lib/imageCompression';
 interface ProfileSectionProps {
   onLogout?: () => void;
   onOpenMessages?: () => void;
+  onViewUserProfile?: (userId: string) => void;
 }
 
 const LOCATION_SUGGESTIONS = [
@@ -49,7 +50,7 @@ const LOCATION_SUGGESTIONS = [
   'Rio de Janeiro, Brazil', 'Cancun, Mexico',
 ];
 
-const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessages }) => {
+const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessages, onViewUserProfile }) => {
   const { user, profile, updateProfile, signOut, refreshProfile } = useAuth();
   const [showSettings, setShowSettings] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
