@@ -466,6 +466,16 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
           </div>
         </div>
       )}
+
+      {user && (
+        <FollowersModal
+          isOpen={showFollowersModal}
+          onClose={() => setShowFollowersModal(false)}
+          userId={user.id}
+          mode={followersModalMode}
+          onViewProfile={(id) => onViewUserProfile?.(id)}
+        />
+      )}
     </section>
   );
 };
