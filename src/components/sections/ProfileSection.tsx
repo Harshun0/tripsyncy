@@ -75,6 +75,9 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
   const shareRef = useRef<HTMLDivElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const [showFollowersModal, setShowFollowersModal] = useState(false);
+  const [followersModalMode, setFollowersModalMode] = useState<'followers' | 'following'>('followers');
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   const fetchMyPosts = async () => {
     if (!user) return;
