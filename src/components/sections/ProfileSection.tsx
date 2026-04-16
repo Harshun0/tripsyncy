@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Settings, Edit2, MapPin, BadgeCheck, Wallet, Heart, Mountain, Utensils, Compass, Sunrise, Camera, Share2, MessageCircle, LogOut, Copy, Facebook, Twitter, Send, Plus, ImagePlus, Loader2, Trash2, Pencil, ChevronLeft, ChevronRight, MoreVertical, X, Lock, Globe } from 'lucide-react';
+import FollowersModal from '@/components/modals/FollowersModal';
 import { Button } from '@/components/ui/button';
 import ProfileSettingsModal from '@/components/modals/ProfileSettingsModal';
 import EditProfileModal from '@/components/modals/EditProfileModal';
