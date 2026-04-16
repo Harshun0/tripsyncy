@@ -8,6 +8,7 @@ import { toast } from '@/hooks/use-toast';
 interface MessagesPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  targetUserId?: string | null;
 }
 
 interface ChatMessage {
@@ -36,7 +37,7 @@ interface ChatListItem {
   timestamp: string;
 }
 
-const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose }) => {
+const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUserId }) => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'messages' | 'requests'>('messages');
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
