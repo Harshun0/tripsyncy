@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { MapPin, BadgeCheck, UserPlus, UserCheck, MessageCircle, ArrowLeft, Loader2, Lock, Globe, Users } from 'lucide-react';
+import FollowersModal from '@/components/modals/FollowersModal';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,6 +10,7 @@ interface UserProfileScreenProps {
   userId: string;
   onBack: () => void;
   onOpenMessages?: () => void;
+  onViewUserProfile?: (userId: string) => void;
 }
 
 const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, onBack, onOpenMessages }) => {
