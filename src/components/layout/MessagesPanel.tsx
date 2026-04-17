@@ -386,14 +386,16 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
   // Chat view
   if (selectedChat) {
     const chat = acceptedChats.find((c) => c.id === selectedChat);
+    const headerName = chat?.name || selectedChatProfile?.display_name || 'Chat';
+    const headerAvatar = chat?.avatar || selectedChatProfile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop&crop=face';
     const msgs = chatMessages[selectedChat] || [];
 
     return (
       <div className="fixed top-20 bottom-6 right-6 z-40 w-96 bg-background rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden animate-fade-in">
         <div className="px-4 py-3 flex items-center gap-3 border-b border-border bg-card">
-          <button onClick={() => { setSelectedChat(null); setSelectedChatUserId(null); setShowEmojis(false); }} className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center"><ChevronLeft className="w-5 h-5" /></button>
-          <img src={chat?.avatar} alt={chat?.name} className="w-10 h-10 rounded-full object-cover" />
-          <div className="flex-1"><h3 className="font-semibold text-foreground text-sm">{chat?.name}</h3><p className="text-xs text-success flex items-center gap-1"><span className="w-1.5 h-1.5 bg-success rounded-full" />Connected</p></div>
+          <button onClick={() => { setSelectedChat(null); setSelectedChatUserId(null); setSelectedChatProfile(null); setShowEmojis(false); }} className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center"><ChevronLeft className="w-5 h-5" /></button>
+          <img src={headerAvatar} alt={headerName} className="w-10 h-10 rounded-full object-cover" />
+          <div className="flex-1"><h3 className="font-semibold text-foreground text-sm">{headerName}</h3><p className="text-xs text-success flex items-center gap-1"><span className="w-1.5 h-1.5 bg-success rounded-full" />Connected</p></div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
