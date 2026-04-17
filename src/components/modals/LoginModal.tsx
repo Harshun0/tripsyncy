@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { X, MapPin, Mail, Lock, User, ArrowRight, Loader2, Chrome, Apple, Eye, EyeOff } from 'lucide-react';
+import { X, MapPin, Mail, Lock, User, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
@@ -12,10 +12,9 @@ interface LoginModalProps {
 }
 
 const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onComplete }) => {
-  const { signIn, signUp, signInWithProvider } = useAuth();
+  const { signIn, signUp } = useAuth();
   const [step, setStep] = useState<'login' | 'signup' | 'forgot'>('login');
   const [loading, setLoading] = useState(false);
-  const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(null);
   const [formData, setFormData] = useState({ email: '', password: '', name: '' });
   const [showPassword, setShowPassword] = useState(false);
 
@@ -59,14 +58,6 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onComplete }) 
     setStep('login');
   };
 
-  const handleSocial = async (provider: 'google' | 'apple') => {
-    setSocialLoading(provider);
-    const { error } = await signInWithProvider(provider);
-    setSocialLoading(null);
-    if (error) { toast({ title: 'Social login failed', description: error, variant: 'destructive' }); return; }
-    onComplete();
-  };
-
   if (!isOpen) return null;
 
   return (
@@ -92,24 +83,6 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onComplete }) 
               {step === 'login' ? 'Sign in to continue your journey' : step === 'signup' ? 'Join our community of travelers' : 'We\'ll send you a reset link'}
             </p>
           </div>
-
-          {step !== 'forgot' && (
-            <>
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <Button type="button" variant="outline" onClick={() => handleSocial('google')} disabled={!!socialLoading} className="h-11 rounded-xl">
-                  {socialLoading === 'google' ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Chrome className="w-4 h-4 mr-2" />Google</>}
-                </Button>
-                <Button type="button" variant="outline" onClick={() => handleSocial('apple')} disabled={!!socialLoading} className="h-11 rounded-xl">
-                  {socialLoading === 'apple' ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Apple className="w-4 h-4 mr-2" />Apple</>}
-                </Button>
-              </div>
-              <div className="relative my-4">
-                <div className="h-px bg-border" />
-                <span className="absolute left-1/2 -translate-x-1/2 -top-2 px-2 text-xs text-muted-foreground bg-background">or continue with email</span>
-              </div>
-            </>
-          )}
-
           {step === 'login' && (
             <form onSubmit={handleLogin} className="space-y-3">
               <div className="relative">
