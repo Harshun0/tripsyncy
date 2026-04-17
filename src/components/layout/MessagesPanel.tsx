@@ -204,23 +204,26 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
 
   useEffect(() => {
     if (!isOpen || !user) return;
-    setNotConnected(false);
-    setNotConnectedProfile(null);
+    if (!targetUserId) {
+      setNotConnected(false);
+      setNotConnectedProfile(null);
+    }
     loadData();
 
     const channel = supabase
       .channel('messages-panel-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'follows' }, () => loadData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'direct_messages' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'direct_messages' }, (payload: any) => {
         loadData();
-        if (selectedChat) loadMessagesForConversation(selectedChat);
+        const convId = payload?.new?.conversation_id || payload?.old?.conversation_id;
+        if (convId) loadMessagesForConversation(convId);
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [isOpen, user, selectedChat]);
+  }, [isOpen, user]);
 
   // Auto-open chat with target user when specified
   useEffect(() => {
@@ -228,20 +231,23 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
     const autoOpen = async () => {
       // Check if they are friends
       const isFriend = await checkFriendship(targetUserId);
+      const { data: prof } = await supabase.from('profiles').select('display_name,avatar_url').eq('id', targetUserId).maybeSingle();
+
       if (!isFriend) {
-        // Load their profile to show "connect first"
-        const { data: prof } = await supabase.from('profiles').select('display_name,avatar_url').eq('id', targetUserId).maybeSingle();
         setNotConnected(true);
         setNotConnectedProfile(prof);
         setSelectedChat(null);
+        setSelectedChatProfile(null);
         return;
       }
       setNotConnected(false);
       setNotConnectedProfile(null);
+      setSelectedChatProfile(prof as any);
       const conversationId = await findOrCreateConversation(targetUserId);
       if (conversationId) {
         setSelectedChatUserId(targetUserId);
         await openChat(conversationId, targetUserId);
+        await loadData();
       }
     };
     autoOpen();
@@ -269,7 +275,17 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
 
   const openChat = async (chatId: string, userId?: string) => {
     setSelectedChat(chatId);
-    if (userId) setSelectedChatUserId(userId);
+    if (userId) {
+      setSelectedChatUserId(userId);
+      // Always fetch profile for header (even if not yet in acceptedChats list)
+      const existing = acceptedChats.find((c) => c.userId === userId);
+      if (existing) {
+        setSelectedChatProfile({ display_name: existing.name, avatar_url: existing.avatar });
+      } else {
+        const { data: prof } = await supabase.from('profiles').select('display_name,avatar_url').eq('id', userId).maybeSingle();
+        if (prof) setSelectedChatProfile(prof as any);
+      }
+    }
     setShowEmojis(false);
     await loadMessagesForConversation(chatId);
   };
