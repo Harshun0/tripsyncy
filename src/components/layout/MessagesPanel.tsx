@@ -55,6 +55,7 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
   const [uploading, setUploading] = useState(false);
   const [notConnected, setNotConnected] = useState(false);
   const [notConnectedProfile, setNotConnectedProfile] = useState<any>(null);
+  const [selectedChatProfile, setSelectedChatProfile] = useState<{ display_name: string; avatar_url: string | null } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -203,23 +204,26 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
 
   useEffect(() => {
     if (!isOpen || !user) return;
-    setNotConnected(false);
-    setNotConnectedProfile(null);
+    if (!targetUserId) {
+      setNotConnected(false);
+      setNotConnectedProfile(null);
+    }
     loadData();
 
     const channel = supabase
       .channel('messages-panel-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'follows' }, () => loadData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'direct_messages' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'direct_messages' }, (payload: any) => {
         loadData();
-        if (selectedChat) loadMessagesForConversation(selectedChat);
+        const convId = payload?.new?.conversation_id || payload?.old?.conversation_id;
+        if (convId) loadMessagesForConversation(convId);
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [isOpen, user, selectedChat]);
+  }, [isOpen, user]);
 
   // Auto-open chat with target user when specified
   useEffect(() => {
@@ -227,20 +231,23 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
     const autoOpen = async () => {
       // Check if they are friends
       const isFriend = await checkFriendship(targetUserId);
+      const { data: prof } = await supabase.from('profiles').select('display_name,avatar_url').eq('id', targetUserId).maybeSingle();
+
       if (!isFriend) {
-        // Load their profile to show "connect first"
-        const { data: prof } = await supabase.from('profiles').select('display_name,avatar_url').eq('id', targetUserId).maybeSingle();
         setNotConnected(true);
         setNotConnectedProfile(prof);
         setSelectedChat(null);
+        setSelectedChatProfile(null);
         return;
       }
       setNotConnected(false);
       setNotConnectedProfile(null);
+      setSelectedChatProfile(prof as any);
       const conversationId = await findOrCreateConversation(targetUserId);
       if (conversationId) {
         setSelectedChatUserId(targetUserId);
         await openChat(conversationId, targetUserId);
+        await loadData();
       }
     };
     autoOpen();
@@ -268,7 +275,17 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
 
   const openChat = async (chatId: string, userId?: string) => {
     setSelectedChat(chatId);
-    if (userId) setSelectedChatUserId(userId);
+    if (userId) {
+      setSelectedChatUserId(userId);
+      // Always fetch profile for header (even if not yet in acceptedChats list)
+      const existing = acceptedChats.find((c) => c.userId === userId);
+      if (existing) {
+        setSelectedChatProfile({ display_name: existing.name, avatar_url: existing.avatar });
+      } else {
+        const { data: prof } = await supabase.from('profiles').select('display_name,avatar_url').eq('id', userId).maybeSingle();
+        if (prof) setSelectedChatProfile(prof as any);
+      }
+    }
     setShowEmojis(false);
     await loadMessagesForConversation(chatId);
   };
@@ -369,14 +386,16 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
   // Chat view
   if (selectedChat) {
     const chat = acceptedChats.find((c) => c.id === selectedChat);
+    const headerName = chat?.name || selectedChatProfile?.display_name || 'Chat';
+    const headerAvatar = chat?.avatar || selectedChatProfile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop&crop=face';
     const msgs = chatMessages[selectedChat] || [];
 
     return (
       <div className="fixed top-20 bottom-6 right-6 z-40 w-96 bg-background rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden animate-fade-in">
         <div className="px-4 py-3 flex items-center gap-3 border-b border-border bg-card">
-          <button onClick={() => { setSelectedChat(null); setSelectedChatUserId(null); setShowEmojis(false); }} className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center"><ChevronLeft className="w-5 h-5" /></button>
-          <img src={chat?.avatar} alt={chat?.name} className="w-10 h-10 rounded-full object-cover" />
-          <div className="flex-1"><h3 className="font-semibold text-foreground text-sm">{chat?.name}</h3><p className="text-xs text-success flex items-center gap-1"><span className="w-1.5 h-1.5 bg-success rounded-full" />Connected</p></div>
+          <button onClick={() => { setSelectedChat(null); setSelectedChatUserId(null); setSelectedChatProfile(null); setShowEmojis(false); }} className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center"><ChevronLeft className="w-5 h-5" /></button>
+          <img src={headerAvatar} alt={headerName} className="w-10 h-10 rounded-full object-cover" />
+          <div className="flex-1"><h3 className="font-semibold text-foreground text-sm">{headerName}</h3><p className="text-xs text-success flex items-center gap-1"><span className="w-1.5 h-1.5 bg-success rounded-full" />Connected</p></div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
