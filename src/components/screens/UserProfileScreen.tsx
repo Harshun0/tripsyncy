@@ -9,7 +9,7 @@ import { toast } from '@/hooks/use-toast';
 interface UserProfileScreenProps {
   userId: string;
   onBack: () => void;
-  onOpenMessages?: () => void;
+  onOpenMessages?: (targetUserId?: string) => void;
   onViewUserProfile?: (userId: string) => void;
 }
 
@@ -177,7 +177,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, onBack, o
                   {followStatus === 'accepted' ? <><UserCheck className="w-5 h-5 mr-2" />Following</> : followStatus === 'pending' ? <><UserPlus className="w-5 h-5 mr-2" />Requested</> : <><UserPlus className="w-5 h-5 mr-2" />{isPrivate ? 'Request to Follow' : 'Follow'}</>}
                 </Button>
                 {followStatus === 'accepted' && (
-                  <Button onClick={onOpenMessages} variant="outline" className="flex-1 h-12 rounded-xl font-semibold border-2 border-primary text-primary">
+                  <Button onClick={() => onOpenMessages?.(userId)} variant="outline" className="flex-1 h-12 rounded-xl font-semibold border-2 border-primary text-primary">
                     <MessageCircle className="w-5 h-5 mr-2" />Message
                   </Button>
                 )}
@@ -250,6 +250,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, onBack, o
         userId={userId}
         mode={followersModalMode}
         onViewProfile={(id) => { setShowFollowersModal(false); onViewUserProfile?.(id); }}
+        onMessageUser={(id) => onOpenMessages?.(id)}
       />
     </section>
   );

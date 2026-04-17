@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, MessageCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface FollowersModalProps {
@@ -8,6 +8,7 @@ interface FollowersModalProps {
   userId: string;
   mode: 'followers' | 'following';
   onViewProfile: (userId: string) => void;
+  onMessageUser?: (userId: string) => void;
 }
 
 interface UserItem {
@@ -17,7 +18,7 @@ interface UserItem {
   location: string | null;
 }
 
-const FollowersModal: React.FC<FollowersModalProps> = ({ isOpen, onClose, userId, mode, onViewProfile }) => {
+const FollowersModal: React.FC<FollowersModalProps> = ({ isOpen, onClose, userId, mode, onViewProfile, onMessageUser }) => {
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -78,21 +79,28 @@ const FollowersModal: React.FC<FollowersModalProps> = ({ isOpen, onClose, userId
           ) : (
             <div className="divide-y divide-border">
               {users.map((u) => (
-                <button
-                  key={u.id}
-                  onClick={() => { onClose(); onViewProfile(u.id); }}
-                  className="w-full flex items-center gap-3 px-5 py-3 hover:bg-muted/50 transition-colors text-left"
-                >
-                  <img
-                    src={u.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop&crop=face'}
-                    alt={u.display_name}
-                    className="w-12 h-12 rounded-full object-cover"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-foreground text-sm truncate">{u.display_name}</h4>
-                    {u.location && <p className="text-xs text-muted-foreground truncate">{u.location}</p>}
-                  </div>
-                </button>
+                <div key={u.id} className="w-full flex items-center gap-3 px-5 py-3 hover:bg-muted/50 transition-colors text-left">
+                  <button onClick={() => { onClose(); onViewProfile(u.id); }} className="flex flex-1 items-center gap-3 min-w-0 text-left">
+                    <img
+                      src={u.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop&crop=face'}
+                      alt={u.display_name}
+                      className="w-12 h-12 rounded-full object-cover"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-foreground text-sm truncate">{u.display_name}</h4>
+                      {u.location && <p className="text-xs text-muted-foreground truncate">{u.location}</p>}
+                    </div>
+                  </button>
+                  {onMessageUser && (
+                    <button
+                      onClick={() => { onClose(); onMessageUser(u.id); }}
+                      className="w-10 h-10 rounded-full hover:bg-primary/10 text-primary flex items-center justify-center transition-colors flex-shrink-0"
+                      aria-label={`Message ${u.display_name}`}
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           )}

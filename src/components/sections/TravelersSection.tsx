@@ -253,7 +253,7 @@ const TravelersSection: React.FC<TravelersSectionProps> = ({ onMessageUser }) =>
         </div>
 
         {/* Recommended for You */}
-        <RecommendedSection />
+        <RecommendedSection onMessageUser={onMessageUser} />
       </div>
 
       {/* Full Screen Map Modal */}

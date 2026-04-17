@@ -20,6 +20,10 @@ interface ScoredProfile extends RecommendedProfile {
   sharedInterests: string[];
 }
 
+interface RecommendedSectionProps {
+  onMessageUser?: (userId: string) => void;
+}
+
 function computeScore(userInterests: string[], travelerInterests: string[]): { score: number; shared: string[] } {
   if (!userInterests.length || !travelerInterests.length) return { score: 10, shared: [] };
   const uSet = new Set(userInterests.map(i => i.toLowerCase()));
@@ -29,7 +33,7 @@ function computeScore(userInterests: string[], travelerInterests: string[]): { s
   return { score: Math.max(jaccardScore, 5), shared };
 }
 
-const RecommendedSection: React.FC = () => {
+const RecommendedSection: React.FC<RecommendedSectionProps> = ({ onMessageUser }) => {
   const { user, profile } = useAuth();
   const [travelers, setTravelers] = useState<RecommendedProfile[]>([]);
   const [followMap, setFollowMap] = useState<Record<string, string>>({});
@@ -191,7 +195,7 @@ const RecommendedSection: React.FC = () => {
 
               {/* Actions */}
               <div className="flex items-center justify-between pt-4 border-t border-border">
-                <Button size="sm" variant="outline" className="rounded-full h-9 px-3">
+                <Button size="sm" variant="outline" className="rounded-full h-9 px-3" onClick={() => onMessageUser?.(traveler.id)}>
                   <MessageCircle className="w-4 h-4 mr-1" />Message
                 </Button>
                 <Button

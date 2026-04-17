@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { encryptDirectMessageContent } from '@/lib/directMessageEncryption';
 import { formatDistanceToNow } from 'date-fns';
 
 interface FeedPost {
@@ -26,11 +27,12 @@ interface FeedPost {
 interface FeedSectionProps {
   onViewUserProfile?: (userId: string) => void;
   onViewPost?: (postId: string) => void;
+  onMessageUser?: (userId: string) => void;
 }
 
 const PAGE_SIZE = 10;
 
-const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile, onViewPost }) => {
+const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile, onViewPost, onMessageUser }) => {
   const { user } = useAuth();
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -307,10 +309,11 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile, onViewPost
 
       if (conversationId) {
         const shareMsg = `📸 Shared a post by ${post.userName}: "${post.caption}" ${post.image ? '\n' + post.image.split(',')[0].trim() : ''}`;
+        const encryptedContent = await encryptDirectMessageContent(shareMsg, user.id, targetUserId);
         await supabase.from('direct_messages').insert({
           conversation_id: conversationId,
           sender_id: user.id,
-          content: shareMsg,
+          content: encryptedContent,
         });
         toast({ title: `Shared with ${targetName} 🚀` });
       }
@@ -453,9 +456,16 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile, onViewPost
                         )}
                       </div>
                     </div>
-                    <button onClick={() => toggleSave(post.id, post.saved)} className="transition-transform hover:scale-105">
-                      <Bookmark className={`w-6 h-6 ${post.saved ? 'fill-foreground text-foreground' : 'text-foreground'}`} />
-                    </button>
+                    <div className="flex items-center gap-3">
+                      {post.userId !== user?.id && (
+                        <button onClick={() => onMessageUser?.(post.userId)} className="transition-transform hover:scale-105 hover:text-primary">
+                          <MessageCircle className="w-6 h-6 text-foreground" />
+                        </button>
+                      )}
+                      <button onClick={() => toggleSave(post.id, post.saved)} className="transition-transform hover:scale-105">
+                        <Bookmark className={`w-6 h-6 ${post.saved ? 'fill-foreground text-foreground' : 'text-foreground'}`} />
+                      </button>
+                    </div>
                   </div>
                   <p className="text-foreground"><span className="font-semibold">{post.userName}</span> {post.caption}</p>
                   {commentingOn === post.id && (
@@ -490,7 +500,7 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile, onViewPost
               <div className="space-y-3">
                 {trendingLocations.map((place, i) => (
                   <button key={place} onClick={() => { setFilterLocation(filterLocation === place ? null : place); }} className={`w-full flex items-center justify-between p-3 rounded-xl transition-colors cursor-pointer ${filterLocation === place ? 'bg-primary/10 ring-1 ring-primary' : 'bg-muted/50 hover:bg-muted'}`}>
-                    <div className="flex items-center gap-3"><span className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center text-xs font-bold text-primary">{i + 1}</span><span className="font-medium text-foreground">{place}</span></div>
+                    <div className="flex min-w-0 items-center gap-3"><span className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center text-xs font-bold text-primary flex-shrink-0">{i + 1}</span><span className="font-medium text-foreground whitespace-nowrap truncate">{place}</span></div>
                     <span className="text-xs text-muted-foreground">{filterLocation === place ? 'active' : 'hot'}</span>
                   </button>
                 ))}
