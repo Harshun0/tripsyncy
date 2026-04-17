@@ -55,6 +55,7 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
   const [uploading, setUploading] = useState(false);
   const [notConnected, setNotConnected] = useState(false);
   const [notConnectedProfile, setNotConnectedProfile] = useState<any>(null);
+  const [selectedChatProfile, setSelectedChatProfile] = useState<{ display_name: string; avatar_url: string | null } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
