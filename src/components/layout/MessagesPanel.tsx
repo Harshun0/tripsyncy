@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, MessageCircle, UserCheck, UserPlus, Send, ChevronLeft, Check, CheckCheck, Clock, Users, Smile, Image as ImageIcon, Loader2, Lock } from 'lucide-react';
+import { X, MessageCircle, UserCheck, UserPlus, Send, ChevronLeft, Check, CheckCheck, Clock, Users, Smile, Image as ImageIcon, Loader2, Lock, Mic, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { compressImage } from '@/lib/imageCompression';
+import { decryptDirectMessageContent, encryptDirectMessageContent } from '@/lib/directMessageEncryption';
 
 interface MessagesPanelProps {
   isOpen: boolean;
@@ -56,8 +57,12 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
   const [notConnected, setNotConnected] = useState(false);
   const [notConnectedProfile, setNotConnectedProfile] = useState<any>(null);
   const [selectedChatProfile, setSelectedChatProfile] = useState<{ display_name: string; avatar_url: string | null } | null>(null);
+  const [openingTargetChat, setOpeningTargetChat] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingStreamRef = useRef<MediaStream | null>(null);
 
   const pendingRequests = useMemo(() => tripRequests.filter((r) => r.status === 'pending'), [tripRequests]);
 
@@ -66,6 +71,29 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
   };
 
   useEffect(() => { scrollToBottom(); }, [chatMessages, selectedChat]);
+
+  const stopRecordingTracks = () => {
+    recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
+    recordingStreamRef.current = null;
+    mediaRecorderRef.current = null;
+  };
+
+  useEffect(() => {
+    return () => stopRecordingTracks();
+  }, []);
+
+  const resolveOtherUserId = (conversationId: string, fallbackUserId?: string | null) => {
+    if (fallbackUserId) return fallbackUserId;
+    if (selectedChat === conversationId && selectedChatUserId) return selectedChatUserId;
+    return acceptedChats.find((chat) => chat.id === conversationId)?.userId || null;
+  };
+
+  const getMessagePreview = (content: string) => {
+    if (content.match(/\.(mp4|webm|mov)(\?.*)?$/i)) return '🎥 Video';
+    if (content.match(/\.(mp3|wav|m4a|ogg|aac|webm)(\?.*)?$/i) && !content.match(/\.(mp4|webm|mov)(\?.*)?$/i)) return '🎙️ Audio';
+    if (content.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i) || content.includes('supabase.co/storage')) return '📷 Photo';
+    return content;
+  };
 
   const checkFriendship = async (otherUserId: string): Promise<boolean> => {
     if (!user) return false;
@@ -99,20 +127,21 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
     return conversationId;
   };
 
-  const loadMessagesForConversation = async (conversationId: string) => {
+  const loadMessagesForConversation = async (conversationId: string, otherUserIdArg?: string | null) => {
     const { data } = await supabase
       .from('direct_messages')
       .select('id,sender_id,content,created_at,read_at')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true });
 
-    const mapped = ((data || []) as any[]).map((m) => ({
+    const otherUserId = resolveOtherUserId(conversationId, otherUserIdArg);
+    const mapped = await Promise.all(((data || []) as any[]).map(async (m) => ({
       id: m.id,
       senderId: m.sender_id,
-      content: m.content,
+      content: user && otherUserId ? await decryptDirectMessageContent(m.content, user.id, otherUserId) : m.content,
       timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       readAt: m.read_at,
-    }));
+    })));
 
     setChatMessages((prev) => ({ ...prev, [conversationId]: mapped }));
 
@@ -180,6 +209,10 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
         .limit(1)
         .maybeSingle();
 
+      const lastMessageContent = (lastMsg as any)?.content
+        ? await decryptDirectMessageContent((lastMsg as any).content, user.id, otherId)
+        : '';
+
       // Count unread
       const { count: unreadCount } = await supabase
         .from('direct_messages')
@@ -193,7 +226,7 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
         userId: otherId,
         name: profileMap[otherId]?.display_name || 'Traveler',
         avatar: profileMap[otherId]?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop&crop=face',
-        lastMessage: (lastMsg as any)?.content || 'Start chatting',
+        lastMessage: getMessagePreview(lastMessageContent) || 'Start chatting',
         timestamp: (lastMsg as any)?.created_at ? new Date((lastMsg as any).created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'now',
         unreadCount: unreadCount || 0,
       });
@@ -216,7 +249,7 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
       .on('postgres_changes', { event: '*', schema: 'public', table: 'direct_messages' }, (payload: any) => {
         loadData();
         const convId = payload?.new?.conversation_id || payload?.old?.conversation_id;
-        if (convId) loadMessagesForConversation(convId);
+        if (convId) loadMessagesForConversation(convId, resolveOtherUserId(convId));
       })
       .subscribe();
 
@@ -229,6 +262,8 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
   useEffect(() => {
     if (!isOpen || !user || !targetUserId) return;
     const autoOpen = async () => {
+      setOpeningTargetChat(true);
+      setActiveTab('messages');
       // Check if they are friends
       const isFriend = await checkFriendship(targetUserId);
       const { data: prof } = await supabase.from('profiles').select('display_name,avatar_url').eq('id', targetUserId).maybeSingle();
@@ -238,6 +273,7 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
         setNotConnectedProfile(prof);
         setSelectedChat(null);
         setSelectedChatProfile(null);
+        setOpeningTargetChat(false);
         return;
       }
       setNotConnected(false);
@@ -249,6 +285,7 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
         await openChat(conversationId, targetUserId);
         await loadData();
       }
+      setOpeningTargetChat(false);
     };
     autoOpen();
   }, [isOpen, targetUserId, user]);
@@ -274,6 +311,8 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
   };
 
   const openChat = async (chatId: string, userId?: string) => {
+    setActiveTab('messages');
+    setNotConnected(false);
     setSelectedChat(chatId);
     if (userId) {
       setSelectedChatUserId(userId);
@@ -287,7 +326,32 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
       }
     }
     setShowEmojis(false);
-    await loadMessagesForConversation(chatId);
+    await loadMessagesForConversation(chatId, userId);
+  };
+
+  const sendEncryptedContent = async (content: string) => {
+    if (!selectedChat || !user) return false;
+
+    const otherUserId = resolveOtherUserId(selectedChat, selectedChatUserId);
+    if (!otherUserId) {
+      toast({ title: 'Unable to open secure chat', description: 'Please reopen this conversation.', variant: 'destructive' });
+      return false;
+    }
+
+    const encryptedContent = await encryptDirectMessageContent(content, user.id, otherUserId);
+    const { error } = await supabase.from('direct_messages').insert({
+      conversation_id: selectedChat,
+      sender_id: user.id,
+      content: encryptedContent,
+    });
+
+    if (error) {
+      toast({ title: 'Message failed', description: error.message, variant: 'destructive' });
+      return false;
+    }
+
+    await loadMessagesForConversation(selectedChat, otherUserId);
+    return true;
   };
 
   const handleSendMessage = async () => {
@@ -296,19 +360,7 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
     const text = inputValue.trim();
     setInputValue('');
     setShowEmojis(false);
-
-    const { error } = await supabase.from('direct_messages').insert({
-      conversation_id: selectedChat,
-      sender_id: user.id,
-      content: text,
-    });
-
-    if (error) {
-      toast({ title: 'Message failed', description: error.message, variant: 'destructive' });
-      return;
-    }
-
-    await loadMessagesForConversation(selectedChat);
+    await sendEncryptedContent(text);
   };
 
   const handleMediaUpload = async (file: File) => {
@@ -322,13 +374,7 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
       if (uploadError) throw uploadError;
       const publicUrl = supabase.storage.from('post-media').getPublicUrl(path).data.publicUrl;
 
-      await supabase.from('direct_messages').insert({
-        conversation_id: selectedChat,
-        sender_id: user.id,
-        content: publicUrl,
-      });
-
-      await loadMessagesForConversation(selectedChat);
+      await sendEncryptedContent(publicUrl);
     } catch (e) {
       toast({ title: 'Upload failed', variant: 'destructive' });
     } finally {
@@ -336,13 +382,67 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
     }
   };
 
+  const toggleAudioRecording = async () => {
+    if (isRecording) {
+      mediaRecorderRef.current?.stop();
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recordingStreamRef.current = stream;
+      const chunks: BlobPart[] = [];
+      const recorder = new MediaRecorder(stream);
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunks.push(event.data);
+      };
+
+      recorder.onstop = async () => {
+        setIsRecording(false);
+        const audioBlob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+        const audioFile = new File([audioBlob], `voice-${Date.now()}.webm`, { type: audioBlob.type || 'audio/webm' });
+        stopRecordingTracks();
+        await handleMediaUpload(audioFile);
+      };
+
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setIsRecording(true);
+      toast({ title: 'Recording started 🎙️' });
+    } catch {
+      stopRecordingTracks();
+      setIsRecording(false);
+      toast({ title: 'Microphone access failed', description: 'Please allow microphone access to record audio.', variant: 'destructive' });
+    }
+  };
+
   const isMediaUrl = (content: string) => {
-    return content.match(/\.(jpg|jpeg|png|gif|webp|mp4|webm|mov)(\?.*)?$/i) || content.includes('supabase.co/storage');
+    return content.match(/\.(jpg|jpeg|png|gif|webp|mp4|webm|mov|mp3|wav|m4a|ogg|aac)(\?.*)?$/i) || content.includes('supabase.co/storage');
   };
 
   const isVideoUrl = (content: string) => content.match(/\.(mp4|webm|mov)(\?.*)?$/i);
+  const isAudioUrl = (content: string) => content.match(/\.(mp3|wav|m4a|ogg|aac|webm)(\?.*)?$/i) && !isVideoUrl(content);
 
   if (!isOpen) return null;
+
+  if (openingTargetChat && targetUserId && !selectedChat && !notConnected) {
+    return (
+      <div className="fixed top-20 bottom-6 right-6 z-40 w-96 bg-background rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden animate-fade-in">
+        <div className="px-4 py-3 flex items-center justify-between border-b border-border bg-card">
+          <div className="flex items-center gap-2"><div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center"><MessageCircle className="w-5 h-5 text-white" /></div><h3 className="font-semibold text-foreground">Messages</h3></div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8 text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <div>
+            <p className="font-medium text-foreground">Opening chat…</p>
+            <p className="text-sm text-muted-foreground mt-1">Preparing your secure conversation.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // "Connect first" screen
   if (notConnected && targetUserId) {
@@ -408,6 +508,7 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
             const isMe = msg.senderId === user?.id;
             const isMedia = isMediaUrl(msg.content);
             const isVideo = isVideoUrl(msg.content);
+            const isAudio = isAudioUrl(msg.content);
             // Check if next message from same sender has read_at (for last message blue tick)
             const isLastFromMe = isMe && (idx === msgs.length - 1 || msgs[idx + 1]?.senderId !== user?.id);
 
@@ -417,6 +518,10 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
                   {isMedia ? (
                     isVideo ? (
                       <video src={msg.content} className="w-full max-h-48 object-cover" controls />
+                    ) : isAudio ? (
+                      <div className="px-3 pt-3">
+                        <audio src={msg.content} className="w-full min-w-[220px]" controls />
+                      </div>
                     ) : (
                       <img src={msg.content} alt="Shared media" className="w-full max-h-48 object-cover cursor-pointer" onClick={() => window.open(msg.content, '_blank')} />
                     )
@@ -461,7 +566,10 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
             <button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="w-10 h-10 rounded-full hover:bg-muted flex items-center justify-center text-muted-foreground transition-colors">
               {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImageIcon className="w-5 h-5" />}
             </button>
-            <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleMediaUpload(f); }} />
+            <button onClick={toggleAudioRecording} className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${isRecording ? 'bg-destructive/10 text-destructive' : 'hover:bg-muted text-muted-foreground'}`}>
+              {isRecording ? <Square className="w-4 h-4" /> : <Mic className="w-5 h-5" />}
+            </button>
+            <input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleMediaUpload(f); }} />
             <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} placeholder="Type a message..." className="flex-1 h-10 px-4 bg-muted rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
             <Button onClick={handleSendMessage} disabled={!inputValue.trim()} size="sm" className="w-10 h-10 p-0 rounded-full gradient-primary"><Send className="w-4 h-4" /></Button>
           </div>
@@ -503,7 +611,7 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
                       <span className="text-xs text-muted-foreground">{chat.timestamp}</span>
                     </div>
                     <p className={`text-sm truncate ${chat.unreadCount > 0 ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
-                      {chat.lastMessage.includes('supabase.co/storage') ? '📷 Photo' : chat.lastMessage}
+                      {chat.lastMessage}
                     </p>
                   </div>
                 </button>

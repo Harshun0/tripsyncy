@@ -44,6 +44,7 @@ const Index: React.FC = () => {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showMessagesPanel, setShowMessagesPanel] = useState(false);
   const [messageTargetUserId, setMessageTargetUserId] = useState<string | null>(null);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [viewUserId, setViewUserId] = useState<string | null>(null);
   const [viewPostId, setViewPostId] = useState<string | null>(null);
@@ -99,6 +100,48 @@ const Index: React.FC = () => {
       });
     }
   }, [profile, user]);
+
+  useEffect(() => {
+    if (!user) {
+      setUnreadMessagesCount(0);
+      return;
+    }
+
+    const loadUnreadCount = async () => {
+      const { data: participantRows } = await supabase
+        .from('conversation_participants')
+        .select('conversation_id')
+        .eq('user_id', user.id);
+
+      const conversationIds = ((participantRows || []) as any[]).map((row) => row.conversation_id);
+
+      if (conversationIds.length === 0) {
+        setUnreadMessagesCount(0);
+        return;
+      }
+
+      const { count } = await supabase
+        .from('direct_messages')
+        .select('*', { count: 'exact', head: true })
+        .in('conversation_id', conversationIds)
+        .neq('sender_id', user.id)
+        .is('read_at', null);
+
+      setUnreadMessagesCount(count || 0);
+    };
+
+    loadUnreadCount();
+
+    const channel = supabase
+      .channel('index-unread-messages')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'direct_messages' }, () => loadUnreadCount())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversation_participants' }, () => loadUnreadCount())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   const handleNavigate = (section: string) => {
     if (section === 'ai') { setShowAIChat(true); return; }
@@ -177,7 +220,7 @@ const Index: React.FC = () => {
 
   const renderContent = () => {
     if (activeSection === 'user-profile' && viewUserId) {
-      return <div className="pt-20"><UserProfileScreen userId={viewUserId} onBack={() => handleNavigate('home')} onOpenMessages={() => openMessagesWithUser(viewUserId)} onViewUserProfile={handleViewUserProfile} /></div>;
+      return <div className="pt-20"><UserProfileScreen userId={viewUserId} onBack={() => handleNavigate('home')} onOpenMessages={(targetUserId?: string) => openMessagesWithUser(targetUserId || viewUserId)} onViewUserProfile={handleViewUserProfile} /></div>;
     }
 
     switch (activeSection) {
@@ -193,7 +236,7 @@ const Index: React.FC = () => {
       case 'post-detail':
         return viewPostId ? <div className="pt-20"><PostDetailScreen postId={viewPostId} onBack={() => handleNavigate('home')} onViewUserProfile={handleViewUserProfile} /></div> : null;
       case 'home':
-        return <div className="pt-20"><FeedSection onViewUserProfile={handleViewUserProfile} onViewPost={handleViewPost} /></div>;
+        return <div className="pt-20"><FeedSection onViewUserProfile={handleViewUserProfile} onViewPost={handleViewPost} onMessageUser={openMessagesWithUser} /></div>;
       case 'explore':
         return <div className="pt-20"><TravelersSection onMessageUser={(uid: string) => openMessagesWithUser(uid)} /></div>;
       case 'itinerary':
@@ -203,7 +246,7 @@ const Index: React.FC = () => {
       case 'search':
         return <div className="pt-20"><SearchSection /></div>;
       case 'profile':
-        return <div className="pt-20"><ProfileSection onLogout={handleLogout} onOpenMessages={() => openMessagesWithUser()} onViewUserProfile={handleViewUserProfile} /></div>;
+        return <div className="pt-20"><ProfileSection onLogout={handleLogout} onOpenMessages={openMessagesWithUser} onViewUserProfile={handleViewUserProfile} /></div>;
       case 'create-trip':
         return <div className="pt-20"><TripCreateScreen onBack={() => handleNavigate('home')} /></div>;
       case 'liked-posts':
@@ -242,7 +285,7 @@ const Index: React.FC = () => {
 
       {isLoggedIn && (
         <Suspense fallback={null}>
-          <FloatingMessagesButton onClick={() => { if (showMessagesPanel) closeMessages(); else openMessagesWithUser(); }} isOpen={showMessagesPanel} unreadCount={0} />
+          <FloatingMessagesButton onClick={() => { if (showMessagesPanel) closeMessages(); else openMessagesWithUser(); }} isOpen={showMessagesPanel} unreadCount={unreadMessagesCount} />
           <MessagesPanel isOpen={showMessagesPanel} onClose={closeMessages} targetUserId={messageTargetUserId} />
         </Suspense>
       )}

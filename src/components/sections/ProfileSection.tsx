@@ -11,7 +11,7 @@ import { compressImage } from '@/lib/imageCompression';
 
 interface ProfileSectionProps {
   onLogout?: () => void;
-  onOpenMessages?: () => void;
+  onOpenMessages?: (targetUserId?: string) => void;
   onViewUserProfile?: (userId: string) => void;
 }
 
@@ -474,6 +474,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
           userId={user.id}
           mode={followersModalMode}
           onViewProfile={(id) => onViewUserProfile?.(id)}
+          onMessageUser={(id) => onOpenMessages?.(id)}
         />
       )}
     </section>
