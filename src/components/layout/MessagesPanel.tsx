@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { compressImage } from '@/lib/imageCompression';
 import { decryptDirectMessageContent, encryptDirectMessageContent } from '@/lib/directMessageEncryption';
+import { ensureDirectConversation } from '@/services/directMessagesService';
 
 interface MessagesPanelProps {
   isOpen: boolean;
@@ -107,24 +108,7 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
 
   const findOrCreateConversation = async (otherUserId: string) => {
     if (!user) return null;
-
-    const { data: mine } = await supabase.from('conversation_participants').select('conversation_id').eq('user_id', user.id);
-    const { data: theirs } = await supabase.from('conversation_participants').select('conversation_id').eq('user_id', otherUserId);
-
-    const myIds = new Set((mine || []).map((m: any) => m.conversation_id));
-    const existing = (theirs || []).find((t: any) => myIds.has(t.conversation_id));
-    if (existing) return existing.conversation_id as string;
-
-    const { data: conversation, error: convError } = await supabase.from('conversations').insert({ created_by: user.id }).select('id').single();
-    if (convError || !conversation) return null;
-
-    const conversationId = (conversation as any).id;
-    await supabase.from('conversation_participants').insert([
-      { conversation_id: conversationId, user_id: user.id },
-      { conversation_id: conversationId, user_id: otherUserId },
-    ]);
-
-    return conversationId;
+    return ensureDirectConversation(otherUserId);
   };
 
   const loadMessagesForConversation = async (conversationId: string, otherUserIdArg?: string | null) => {
