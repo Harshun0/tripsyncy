@@ -5,6 +5,7 @@ import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { encryptDirectMessageContent } from '@/lib/directMessageEncryption';
+import { ensureDirectConversation } from '@/services/directMessagesService';
 import { formatDistanceToNow } from 'date-fns';
 
 interface FeedPost {
@@ -279,7 +280,7 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile, onViewPost
         .eq('user_id', user.id);
       
       let conversationId: string | null = null;
-      
+
       if (existingConvos && existingConvos.length > 0) {
         const convoIds = existingConvos.map((c: any) => c.conversation_id);
         const { data: targetConvos } = await supabase
@@ -293,18 +294,7 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile, onViewPost
       }
 
       if (!conversationId) {
-        const { data: newConvo } = await supabase
-          .from('conversations')
-          .insert({ created_by: user.id })
-          .select('id')
-          .single();
-        if (newConvo) {
-          conversationId = newConvo.id;
-          await supabase.from('conversation_participants').insert([
-            { conversation_id: conversationId, user_id: user.id },
-            { conversation_id: conversationId, user_id: targetUserId },
-          ]);
-        }
+        conversationId = await ensureDirectConversation(targetUserId);
       }
 
       if (conversationId) {
