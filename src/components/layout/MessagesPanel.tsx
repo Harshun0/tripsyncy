@@ -282,8 +282,9 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
       const conversationId = await findOrCreateConversation(targetUserId);
       if (conversationId) {
         setSelectedChatUserId(targetUserId);
-        await openChat(conversationId, targetUserId);
         await loadData();
+        await openChat(conversationId, targetUserId);
+        return;
       }
       setOpeningTargetChat(false);
     };
@@ -312,11 +313,12 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
 
   const openChat = async (chatId: string, userId?: string) => {
     setActiveTab('messages');
+    setOpeningTargetChat(true);
     setNotConnected(false);
+    setNotConnectedProfile(null);
     setSelectedChat(chatId);
     if (userId) {
       setSelectedChatUserId(userId);
-      // Always fetch profile for header (even if not yet in acceptedChats list)
       const existing = acceptedChats.find((c) => c.userId === userId);
       if (existing) {
         setSelectedChatProfile({ display_name: existing.name, avatar_url: existing.avatar });
@@ -327,6 +329,7 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
     }
     setShowEmojis(false);
     await loadMessagesForConversation(chatId, userId);
+    setOpeningTargetChat(false);
   };
 
   const sendEncryptedContent = async (content: string) => {
@@ -426,7 +429,7 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
 
   if (!isOpen) return null;
 
-  if (openingTargetChat && targetUserId && !selectedChat && !notConnected) {
+  if (openingTargetChat && !notConnected && (!selectedChat || targetUserId)) {
     return (
       <div className="fixed top-20 bottom-6 right-6 z-40 w-96 bg-background rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden animate-fade-in">
         <div className="px-4 py-3 flex items-center justify-between border-b border-border bg-card">
