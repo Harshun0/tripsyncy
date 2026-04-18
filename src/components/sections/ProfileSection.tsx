@@ -329,7 +329,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ onLogout, onOpenMessage
                   </div>
                 )}
               </div>
-              <Button onClick={onOpenMessages} variant="outline" className="w-full h-12 rounded-xl font-semibold border-2 border-primary text-primary">
+              <Button onClick={() => onOpenMessages?.()} variant="outline" className="w-full h-12 rounded-xl font-semibold border-2 border-primary text-primary">
                 <MessageCircle className="w-5 h-5 mr-2" />Messages
               </Button>
               <Button onClick={handleLogout} variant="outline" className="w-full h-12 rounded-xl font-semibold border-destructive text-destructive hover:bg-destructive/5">
