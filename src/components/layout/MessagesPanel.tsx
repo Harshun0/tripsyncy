@@ -264,6 +264,9 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
     const autoOpen = async () => {
       setOpeningTargetChat(true);
       setActiveTab('messages');
+      setSelectedChat(null);
+      setSelectedChatUserId(null);
+      setSelectedChatProfile(null);
       // Check if they are friends
       const isFriend = await checkFriendship(targetUserId);
       const { data: prof } = await supabase.from('profiles').select('display_name,avatar_url').eq('id', targetUserId).maybeSingle();
@@ -290,6 +293,18 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
     };
     autoOpen();
   }, [isOpen, targetUserId, user]);
+
+  useEffect(() => {
+    if (isOpen) return;
+    setActiveTab('messages');
+    setSelectedChat(null);
+    setSelectedChatUserId(null);
+    setSelectedChatProfile(null);
+    setNotConnected(false);
+    setNotConnectedProfile(null);
+    setOpeningTargetChat(false);
+    setShowEmojis(false);
+  }, [isOpen]);
 
   const handleAcceptRequest = async (requestId: string) => {
     const request = tripRequests.find((r) => r.id === requestId);
@@ -429,7 +444,7 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
 
   if (!isOpen) return null;
 
-  if (openingTargetChat && !notConnected && (!selectedChat || targetUserId)) {
+  if (openingTargetChat && !notConnected && !selectedChat) {
     return (
       <div className="fixed top-20 bottom-6 right-6 z-40 w-96 bg-background rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden animate-fade-in">
         <div className="px-4 py-3 flex items-center justify-between border-b border-border bg-card">
