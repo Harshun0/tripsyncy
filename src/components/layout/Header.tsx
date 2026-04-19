@@ -39,6 +39,7 @@ const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, 
     { id: 'itinerary', label: 'AI Itinerary' },
     { id: 'expenses', label: 'Expenses' },
     { id: 'search', label: 'Search' },
+    { id: 'lost-found', label: 'Lost & Found' },
   ];
 
   const unreadCount = useMemo(() => notifications.filter((n) => !n.is_read).length, [notifications]);
