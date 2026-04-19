@@ -23,6 +23,7 @@ const ItineraryIntroSection = lazy(() => import('@/components/sections/Itinerary
 const ExpenseSection = lazy(() => import('@/components/sections/ExpenseSection'));
 const ProfileSection = lazy(() => import('@/components/sections/ProfileSection'));
 const SearchSection = lazy(() => import('@/components/sections/SearchSection'));
+const LostFoundSection = lazy(() => import('@/components/sections/LostFoundSection'));
 const AIChatModal = lazy(() => import('@/components/sections/AIChatModal'));
 const TripCreateScreen = lazy(() => import('@/components/screens/TripCreateScreen'));
 const UserProfileScreen = lazy(() => import('@/components/screens/UserProfileScreen'));
@@ -245,6 +246,8 @@ const Index: React.FC = () => {
         return <div className="pt-20"><ExpenseSection /></div>;
       case 'search':
         return <div className="pt-20"><SearchSection /></div>;
+      case 'lost-found':
+        return <div className="pt-20"><LostFoundSection /></div>;
       case 'profile':
         return <div className="pt-20"><ProfileSection onLogout={handleLogout} onOpenMessages={openMessagesWithUser} onViewUserProfile={handleViewUserProfile} /></div>;
       case 'create-trip':
