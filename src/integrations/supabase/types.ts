@@ -880,6 +880,10 @@ export type Database = {
         Args: { _owner_id: string; _viewer_id: string }
         Returns: boolean
       }
+      is_conversation_participant: {
+        Args: { _conversation_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_expense_group_member: {
         Args: { _group_id: string; _user_id: string }
         Returns: boolean
