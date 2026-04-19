@@ -256,9 +256,22 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
       .channel('messages-panel-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'follows' }, () => loadData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'direct_messages' }, (payload: any) => {
+        const newRow = payload?.new || payload?.old;
+        const convId = newRow?.conversation_id;
+        if (!convId) return;
+
+        // Prefer sender_id from the realtime payload — for the recipient this IS the other
+        // participant, which avoids any decryption race against still-loading state.
+        const senderId: string | undefined = newRow?.sender_id;
+        const otherFromPayload = senderId && senderId !== user.id ? senderId : undefined;
+        if (otherFromPayload) {
+          convToOtherUserIdRef.current[convId] = otherFromPayload;
+        }
+        const otherUserId = otherFromPayload || resolveOtherUserId(convId);
+
+        loadMessagesForConversation(convId, otherUserId);
+        // Refresh the chat list so the most-recent conversation bubbles to the top.
         loadData();
-        const convId = payload?.new?.conversation_id || payload?.old?.conversation_id;
-        if (convId) loadMessagesForConversation(convId, resolveOtherUserId(convId));
       })
       .subscribe();
 
