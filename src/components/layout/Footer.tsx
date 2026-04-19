@@ -43,7 +43,7 @@ const Footer: React.FC = () => {
             </p>
             <div className="space-y-3 text-background/60">
               <a
-                href="https://mail.google.com/mail/?view=cm&fs=1&to=dipanshukaranjekar2003@gmail.com"
+                href="https://mail.google.com/mail/?view=cm&fs=1&to=tripsyncsupport@gmail.com"
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-3 hover:text-background transition-colors"
@@ -51,7 +51,7 @@ const Footer: React.FC = () => {
                 <div className="w-8 h-8 rounded-lg bg-background/8 flex items-center justify-center">
                   <Mail className="w-4 h-4" />
                 </div>
-                <span>hello@tripsync.com</span>
+                <span>tripsyncsupport@gmail.com</span>
               </a>
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-background/8 flex items-center justify-center">
