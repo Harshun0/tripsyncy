@@ -40,6 +40,7 @@ interface ChatListItem {
   lastMessage: string;
   timestamp: string;
   unreadCount: number;
+  lastMessageAt: number; // epoch ms — used for sorting most-recent chats to the top
 }
 
 const EMOJI_LIST = ['😀','😂','😍','🥰','😎','🤩','😘','🥳','✈️','🏖️','🏔️','🌍','🎉','❤️','🔥','👍','👋','🙏','💯','⭐','🌅','🗺️','🧳','🏕️','🚀','🍕','☕','🎶','📸','🌸'];
@@ -60,6 +61,9 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
   const [selectedChatProfile, setSelectedChatProfile] = useState<{ display_name: string; avatar_url: string | null } | null>(null);
   const [openingTargetChat, setOpeningTargetChat] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  // Stable lookup of conversationId -> other participant userId. Populated by loadData and
+  // used by the realtime handler so decryption never races on stale React state.
+  const convToOtherUserIdRef = useRef<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -86,6 +90,8 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
   const resolveOtherUserId = (conversationId: string, fallbackUserId?: string | null) => {
     if (fallbackUserId) return fallbackUserId;
     if (selectedChat === conversationId && selectedChatUserId) return selectedChatUserId;
+    const fromMap = convToOtherUserIdRef.current[conversationId];
+    if (fromMap) return fromMap;
     return acceptedChats.find((chat) => chat.id === conversationId)?.userId || null;
   };
 
@@ -179,42 +185,61 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
     const profileMap: Record<string, any> = {};
     (profileRows || []).forEach((p: any) => { profileMap[p.id] = p; });
 
-    const chats: ChatListItem[] = [];
+    // Resolve all conversation ids in parallel.
+    const convResults = await Promise.all(
+      otherUserIds.map(async (otherId) => ({ otherId, conversationId: await findOrCreateConversation(otherId) }))
+    );
+    const validConvs = convResults.filter((c) => !!c.conversationId) as { otherId: string; conversationId: string }[];
 
-    for (const otherId of otherUserIds) {
-      const conversationId = await findOrCreateConversation(otherId);
-      if (!conversationId) continue;
+    // Update the stable conv -> other user lookup so realtime decryption never races.
+    validConvs.forEach((c) => { convToOtherUserIdRef.current[c.conversationId] = c.otherId; });
 
-      const { data: lastMsg } = await supabase
-        .from('direct_messages')
-        .select('content,created_at')
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      const lastMessageContent = (lastMsg as any)?.content
-        ? await decryptDirectMessageContent((lastMsg as any).content, user.id, otherId)
-        : '';
-
-      // Count unread
-      const { count: unreadCount } = await supabase
-        .from('direct_messages')
-        .select('*', { count: 'exact', head: true })
-        .eq('conversation_id', conversationId)
-        .neq('sender_id', user.id)
-        .is('read_at', null);
-
-      chats.push({
-        id: conversationId,
-        userId: otherId,
-        name: profileMap[otherId]?.display_name || 'Traveler',
-        avatar: profileMap[otherId]?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop&crop=face',
-        lastMessage: getMessagePreview(lastMessageContent) || 'Start chatting',
-        timestamp: (lastMsg as any)?.created_at ? new Date((lastMsg as any).created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'now',
-        unreadCount: unreadCount || 0,
-      });
+    if (!validConvs.length) {
+      setAcceptedChats([]);
+      return;
     }
+
+    const conversationIds = validConvs.map((c) => c.conversationId);
+
+    // Fetch every message in these conversations in a single round-trip, then derive last
+    // message + unread count per conversation client-side. This collapses 2N queries into 1.
+    const { data: msgRows } = await supabase
+      .from('direct_messages')
+      .select('conversation_id,sender_id,content,created_at,read_at')
+      .in('conversation_id', conversationIds)
+      .order('created_at', { ascending: false });
+
+    const lastMsgByConv: Record<string, any> = {};
+    const unreadByConv: Record<string, number> = {};
+    ((msgRows || []) as any[]).forEach((row) => {
+      if (!lastMsgByConv[row.conversation_id]) lastMsgByConv[row.conversation_id] = row;
+      if (row.sender_id !== user.id && !row.read_at) {
+        unreadByConv[row.conversation_id] = (unreadByConv[row.conversation_id] || 0) + 1;
+      }
+    });
+
+    const chats: ChatListItem[] = await Promise.all(
+      validConvs.map(async ({ otherId, conversationId }) => {
+        const lastMsg = lastMsgByConv[conversationId];
+        const lastMessageContent = lastMsg?.content
+          ? await decryptDirectMessageContent(lastMsg.content, user.id, otherId)
+          : '';
+        const lastTs = lastMsg?.created_at ? new Date(lastMsg.created_at).getTime() : 0;
+        return {
+          id: conversationId,
+          userId: otherId,
+          name: profileMap[otherId]?.display_name || 'Traveler',
+          avatar: profileMap[otherId]?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop&crop=face',
+          lastMessage: getMessagePreview(lastMessageContent) || 'Start chatting',
+          timestamp: lastMsg?.created_at ? new Date(lastMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+          unreadCount: unreadByConv[conversationId] || 0,
+          lastMessageAt: lastTs,
+        };
+      })
+    );
+
+    // Most recent conversation first; chats with no messages fall to the bottom.
+    chats.sort((a, b) => b.lastMessageAt - a.lastMessageAt);
 
     setAcceptedChats(chats);
   };
@@ -231,9 +256,22 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
       .channel('messages-panel-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'follows' }, () => loadData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'direct_messages' }, (payload: any) => {
+        const newRow = payload?.new || payload?.old;
+        const convId = newRow?.conversation_id;
+        if (!convId) return;
+
+        // Prefer sender_id from the realtime payload — for the recipient this IS the other
+        // participant, which avoids any decryption race against still-loading state.
+        const senderId: string | undefined = newRow?.sender_id;
+        const otherFromPayload = senderId && senderId !== user.id ? senderId : undefined;
+        if (otherFromPayload) {
+          convToOtherUserIdRef.current[convId] = otherFromPayload;
+        }
+        const otherUserId = otherFromPayload || resolveOtherUserId(convId);
+
+        loadMessagesForConversation(convId, otherUserId);
+        // Refresh the chat list so the most-recent conversation bubbles to the top.
         loadData();
-        const convId = payload?.new?.conversation_id || payload?.old?.conversation_id;
-        if (convId) loadMessagesForConversation(convId, resolveOtherUserId(convId));
       })
       .subscribe();
 
@@ -251,9 +289,14 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
       setSelectedChat(null);
       setSelectedChatUserId(null);
       setSelectedChatProfile(null);
-      // Check if they are friends
-      const isFriend = await checkFriendship(targetUserId);
-      const { data: prof } = await supabase.from('profiles').select('display_name,avatar_url').eq('id', targetUserId).maybeSingle();
+
+      // Run friendship check, profile fetch and conversation creation in parallel for snappy open.
+      const [isFriend, profRes, conversationId] = await Promise.all([
+        checkFriendship(targetUserId),
+        supabase.from('profiles').select('display_name,avatar_url').eq('id', targetUserId).maybeSingle(),
+        ensureDirectConversation(targetUserId).catch(() => null),
+      ]);
+      const prof = profRes?.data;
 
       if (!isFriend) {
         setNotConnected(true);
@@ -266,10 +309,9 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
       setNotConnected(false);
       setNotConnectedProfile(null);
       setSelectedChatProfile(prof as any);
-      const conversationId = await findOrCreateConversation(targetUserId);
       if (conversationId) {
+        convToOtherUserIdRef.current[conversationId] = targetUserId;
         setSelectedChatUserId(targetUserId);
-        await loadData();
         await openChat(conversationId, targetUserId);
         return;
       }
