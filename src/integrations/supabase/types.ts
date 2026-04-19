@@ -404,6 +404,54 @@ export type Database = {
           },
         ]
       }
+      lost_found_items: {
+        Row: {
+          contact_phone: string | null
+          created_at: string
+          description: string | null
+          finder_name: string | null
+          id: string
+          location: string | null
+          media_url: string | null
+          resolved_at: string | null
+          status: string
+          title: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          contact_phone?: string | null
+          created_at?: string
+          description?: string | null
+          finder_name?: string | null
+          id?: string
+          location?: string | null
+          media_url?: string | null
+          resolved_at?: string | null
+          status?: string
+          title: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          contact_phone?: string | null
+          created_at?: string
+          description?: string | null
+          finder_name?: string | null
+          id?: string
+          location?: string | null
+          media_url?: string | null
+          resolved_at?: string | null
+          status?: string
+          title?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           actor_id: string | null
