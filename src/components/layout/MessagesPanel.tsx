@@ -40,6 +40,7 @@ interface ChatListItem {
   lastMessage: string;
   timestamp: string;
   unreadCount: number;
+  lastMessageAt: number; // epoch ms — used for sorting most-recent chats to the top
 }
 
 const EMOJI_LIST = ['😀','😂','😍','🥰','😎','🤩','😘','🥳','✈️','🏖️','🏔️','🌍','🎉','❤️','🔥','👍','👋','🙏','💯','⭐','🌅','🗺️','🧳','🏕️','🚀','🍕','☕','🎶','📸','🌸'];
@@ -60,6 +61,9 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
   const [selectedChatProfile, setSelectedChatProfile] = useState<{ display_name: string; avatar_url: string | null } | null>(null);
   const [openingTargetChat, setOpeningTargetChat] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  // Stable lookup of conversationId -> other participant userId. Populated by loadData and
+  // used by the realtime handler so decryption never races on stale React state.
+  const convToOtherUserIdRef = useRef<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
