@@ -90,6 +90,8 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
   const resolveOtherUserId = (conversationId: string, fallbackUserId?: string | null) => {
     if (fallbackUserId) return fallbackUserId;
     if (selectedChat === conversationId && selectedChatUserId) return selectedChatUserId;
+    const fromMap = convToOtherUserIdRef.current[conversationId];
+    if (fromMap) return fromMap;
     return acceptedChats.find((chat) => chat.id === conversationId)?.userId || null;
   };
 
