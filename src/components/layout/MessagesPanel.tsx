@@ -185,42 +185,61 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
     const profileMap: Record<string, any> = {};
     (profileRows || []).forEach((p: any) => { profileMap[p.id] = p; });
 
-    const chats: ChatListItem[] = [];
+    // Resolve all conversation ids in parallel.
+    const convResults = await Promise.all(
+      otherUserIds.map(async (otherId) => ({ otherId, conversationId: await findOrCreateConversation(otherId) }))
+    );
+    const validConvs = convResults.filter((c) => !!c.conversationId) as { otherId: string; conversationId: string }[];
 
-    for (const otherId of otherUserIds) {
-      const conversationId = await findOrCreateConversation(otherId);
-      if (!conversationId) continue;
+    // Update the stable conv -> other user lookup so realtime decryption never races.
+    validConvs.forEach((c) => { convToOtherUserIdRef.current[c.conversationId] = c.otherId; });
 
-      const { data: lastMsg } = await supabase
-        .from('direct_messages')
-        .select('content,created_at')
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      const lastMessageContent = (lastMsg as any)?.content
-        ? await decryptDirectMessageContent((lastMsg as any).content, user.id, otherId)
-        : '';
-
-      // Count unread
-      const { count: unreadCount } = await supabase
-        .from('direct_messages')
-        .select('*', { count: 'exact', head: true })
-        .eq('conversation_id', conversationId)
-        .neq('sender_id', user.id)
-        .is('read_at', null);
-
-      chats.push({
-        id: conversationId,
-        userId: otherId,
-        name: profileMap[otherId]?.display_name || 'Traveler',
-        avatar: profileMap[otherId]?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop&crop=face',
-        lastMessage: getMessagePreview(lastMessageContent) || 'Start chatting',
-        timestamp: (lastMsg as any)?.created_at ? new Date((lastMsg as any).created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'now',
-        unreadCount: unreadCount || 0,
-      });
+    if (!validConvs.length) {
+      setAcceptedChats([]);
+      return;
     }
+
+    const conversationIds = validConvs.map((c) => c.conversationId);
+
+    // Fetch every message in these conversations in a single round-trip, then derive last
+    // message + unread count per conversation client-side. This collapses 2N queries into 1.
+    const { data: msgRows } = await supabase
+      .from('direct_messages')
+      .select('conversation_id,sender_id,content,created_at,read_at')
+      .in('conversation_id', conversationIds)
+      .order('created_at', { ascending: false });
+
+    const lastMsgByConv: Record<string, any> = {};
+    const unreadByConv: Record<string, number> = {};
+    ((msgRows || []) as any[]).forEach((row) => {
+      if (!lastMsgByConv[row.conversation_id]) lastMsgByConv[row.conversation_id] = row;
+      if (row.sender_id !== user.id && !row.read_at) {
+        unreadByConv[row.conversation_id] = (unreadByConv[row.conversation_id] || 0) + 1;
+      }
+    });
+
+    const chats: ChatListItem[] = await Promise.all(
+      validConvs.map(async ({ otherId, conversationId }) => {
+        const lastMsg = lastMsgByConv[conversationId];
+        const lastMessageContent = lastMsg?.content
+          ? await decryptDirectMessageContent(lastMsg.content, user.id, otherId)
+          : '';
+        const lastTs = lastMsg?.created_at ? new Date(lastMsg.created_at).getTime() : 0;
+        return {
+          id: conversationId,
+          userId: otherId,
+          name: profileMap[otherId]?.display_name || 'Traveler',
+          avatar: profileMap[otherId]?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop&crop=face',
+          lastMessage: getMessagePreview(lastMessageContent) || 'Start chatting',
+          timestamp: lastMsg?.created_at ? new Date(lastMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+          unreadCount: unreadByConv[conversationId] || 0,
+          lastMessageAt: lastTs,
+        };
+      })
+    );
+
+    // Most recent conversation first; chats with no messages fall to the bottom.
+    chats.sort((a, b) => b.lastMessageAt - a.lastMessageAt);
 
     setAcceptedChats(chats);
   };
