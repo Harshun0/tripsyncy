@@ -43,9 +43,16 @@ const Footer: React.FC = () => {
             </p>
             <div className="space-y-3 text-background/60">
               <a
-                href="https://mail.google.com/mail/?view=cm&fs=1&to=tripsyncsupport@gmail.com"
-                target="_blank"
-                rel="noreferrer"
+                href="mailto:tripsyncsupport@gmail.com?subject=TripSync%20Support"
+                onClick={(e) => {
+                  // Try to open Gmail compose in a new tab; fall back to mailto if blocked.
+                  const win = window.open(
+                    'https://mail.google.com/mail/?view=cm&fs=1&to=tripsyncsupport@gmail.com&su=TripSync%20Support',
+                    '_blank',
+                    'noopener,noreferrer'
+                  );
+                  if (win) e.preventDefault();
+                }}
                 className="flex items-center gap-3 hover:text-background transition-colors"
               >
                 <div className="w-8 h-8 rounded-lg bg-background/8 flex items-center justify-center">
