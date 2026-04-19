@@ -289,9 +289,14 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
       setSelectedChat(null);
       setSelectedChatUserId(null);
       setSelectedChatProfile(null);
-      // Check if they are friends
-      const isFriend = await checkFriendship(targetUserId);
-      const { data: prof } = await supabase.from('profiles').select('display_name,avatar_url').eq('id', targetUserId).maybeSingle();
+
+      // Run friendship check, profile fetch and conversation creation in parallel for snappy open.
+      const [isFriend, profRes, conversationId] = await Promise.all([
+        checkFriendship(targetUserId),
+        supabase.from('profiles').select('display_name,avatar_url').eq('id', targetUserId).maybeSingle(),
+        ensureDirectConversation(targetUserId).catch(() => null),
+      ]);
+      const prof = profRes?.data;
 
       if (!isFriend) {
         setNotConnected(true);
@@ -304,10 +309,9 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
       setNotConnected(false);
       setNotConnectedProfile(null);
       setSelectedChatProfile(prof as any);
-      const conversationId = await findOrCreateConversation(targetUserId);
       if (conversationId) {
+        convToOtherUserIdRef.current[conversationId] = targetUserId;
         setSelectedChatUserId(targetUserId);
-        await loadData();
         await openChat(conversationId, targetUserId);
         return;
       }
