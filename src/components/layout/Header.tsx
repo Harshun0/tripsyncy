@@ -121,9 +121,11 @@ const Header: React.FC<HeaderProps> = ({ activeSection, onNavigate, isLoggedIn, 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 lg:h-20">
           <button onClick={() => onNavigate(isLoggedIn ? 'home' : 'landing')} className="flex items-center gap-2 group flex-shrink-0">
-            <div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center shadow-glow group-hover:scale-105 transition-transform">
-              <MapPin className="w-5 h-5 text-white" />
-            </div>
+            <img 
+              src="/tripsync-logo.png" 
+              alt="TripSync Logo" 
+              className="w-10 h-10 object-contain group-hover:scale-105 transition-transform"
+            />
             <span className="text-xl font-bold text-gradient hidden sm:block">TripSync</span>
           </button>
 
