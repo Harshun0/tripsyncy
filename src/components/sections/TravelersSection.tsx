@@ -98,9 +98,10 @@ function createAvatarIcon(avatarUrl: string) {
 
 interface TravelersSectionProps {
   onMessageUser?: (userId: string) => void;
+  onViewUserProfile?: (userId: string) => void;
 }
 
-const TravelersSection: React.FC<TravelersSectionProps> = ({ onMessageUser }) => {
+const TravelersSection: React.FC<TravelersSectionProps> = ({ onMessageUser, onViewUserProfile }) => {
   const { user } = useAuth();
   const [selectedRadius, setSelectedRadius] = useState('25');
   const [travelers, setTravelers] = useState<TravelerProfile[]>([]);
@@ -227,23 +228,31 @@ const TravelersSection: React.FC<TravelersSectionProps> = ({ onMessageUser }) =>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredTravelers.map((traveler) => {
             const status = followMap[traveler.id];
+            // Whole card opens the user's profile (same flow as feed). Buttons stop propagation.
             return (
-              <div key={traveler.id} className="travel-card group hover:shadow-xl transition-all duration-300">
+              <div
+                key={traveler.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => onViewUserProfile?.(traveler.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter') onViewUserProfile?.(traveler.id); }}
+                className="travel-card group hover:shadow-xl transition-all duration-300 cursor-pointer"
+              >
                 <div className="flex items-start gap-4 mb-4">
                   <div className="relative flex-shrink-0">
                     <img src={traveler.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop&crop=face'} alt={traveler.display_name} className="w-16 h-16 rounded-2xl object-cover" />
                     <div className="absolute -top-1 -right-1 w-6 h-6 gradient-primary rounded-full flex items-center justify-center shadow-md"><BadgeCheck className="w-3.5 h-3.5 text-white" /></div>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-foreground truncate">{traveler.display_name}</h3>
+                    <h3 className="font-semibold text-foreground truncate hover:text-primary transition-colors">{traveler.display_name}</h3>
                     <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1"><MapPin className="w-3 h-3" />{traveler.location || 'Unknown'}</p>
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{traveler.bio || 'No bio added yet.'}</p>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-1.5 mb-4">{(traveler.interests || []).slice(0, 4).map((interest) => <span key={interest} className="chip chip-primary text-xs">{interest}</span>)}</div>
                 <div className="flex items-center justify-between pt-4 border-t border-border">
-                  <Button size="sm" variant="outline" className="rounded-full h-9 px-3" onClick={() => onMessageUser?.(traveler.id)}><MessageCircle className="w-4 h-4 mr-1" />Message</Button>
-                  <Button size="sm" className={`rounded-full h-9 px-3 ${status === 'accepted' ? 'bg-muted text-foreground' : status === 'pending' ? 'bg-secondary text-secondary-foreground' : 'gradient-primary text-white'}`} onClick={() => handleFollow(traveler.id, traveler.display_name)}>
+                  <Button size="sm" variant="outline" className="rounded-full h-9 px-3" onClick={(e) => { e.stopPropagation(); onMessageUser?.(traveler.id); }}><MessageCircle className="w-4 h-4 mr-1" />Message</Button>
+                  <Button size="sm" className={`rounded-full h-9 px-3 ${status === 'accepted' ? 'bg-muted text-foreground' : status === 'pending' ? 'bg-secondary text-secondary-foreground' : 'gradient-primary text-white'}`} onClick={(e) => { e.stopPropagation(); handleFollow(traveler.id, traveler.display_name); }}>
                     {status === 'accepted' ? <><UserCheck className="w-4 h-4 mr-1" />Following</> : status === 'pending' ? <><UserPlus className="w-4 h-4 mr-1" />Requested</> : <><UserPlus className="w-4 h-4 mr-1" />Follow</>}
                   </Button>
                 </div>
@@ -253,7 +262,7 @@ const TravelersSection: React.FC<TravelersSectionProps> = ({ onMessageUser }) =>
         </div>
 
         {/* Recommended for You */}
-        <RecommendedSection onMessageUser={onMessageUser} />
+        <RecommendedSection onMessageUser={onMessageUser} onViewUserProfile={onViewUserProfile} />
       </div>
 
       {/* Full Screen Map Modal */}
