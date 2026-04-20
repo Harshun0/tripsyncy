@@ -58,14 +58,16 @@ serve(async (req) => {
       });
     }
 
+    // Only consider 1-on-1 (non-group) conversations when looking up the existing DM.
     const { data: myParticipants, error: myParticipantsError } = await adminClient
       .from("conversation_participants")
-      .select("conversation_id")
-      .eq("user_id", user.id);
+      .select("conversation_id, conversations!inner(is_group)")
+      .eq("user_id", user.id)
+      .eq("conversations.is_group", false);
 
     if (myParticipantsError) throw myParticipantsError;
 
-    const myConversationIds = (myParticipants || []).map((row) => row.conversation_id);
+    const myConversationIds = (myParticipants || []).map((row: any) => row.conversation_id);
 
     if (myConversationIds.length > 0) {
       const { data: existingParticipant, error: existingError } = await adminClient
@@ -87,7 +89,7 @@ serve(async (req) => {
 
     const { data: conversation, error: conversationError } = await adminClient
       .from("conversations")
-      .insert({ created_by: user.id })
+      .insert({ created_by: user.id, is_group: false })
       .select("id")
       .single();
 

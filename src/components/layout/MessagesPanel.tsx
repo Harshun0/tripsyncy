@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, MessageCircle, UserCheck, UserPlus, Send, ChevronLeft, Check, CheckCheck, Clock, Users, Smile, Image as ImageIcon, Loader2, Lock, Mic, Square } from 'lucide-react';
+import { X, MessageCircle, UserCheck, UserPlus, Send, ChevronLeft, Check, CheckCheck, Clock, Users, Smile, Image as ImageIcon, Loader2, Lock, Mic, Square, Plus, Settings, UserMinus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -17,6 +17,8 @@ interface MessagesPanelProps {
 interface ChatMessage {
   id: string;
   senderId: string;
+  senderName?: string;
+  senderAvatar?: string;
   content: string;
   timestamp: string;
   readAt: string | null;
@@ -40,19 +42,43 @@ interface ChatListItem {
   lastMessage: string;
   timestamp: string;
   unreadCount: number;
-  lastMessageAt: number; // epoch ms — used for sorting most-recent chats to the top
+  lastMessageAt: number;
+}
+
+interface GroupListItem {
+  id: string;
+  title: string;
+  memberCount: number;
+  lastMessage: string;
+  timestamp: string;
+  unreadCount: number;
+  lastMessageAt: number;
+  createdBy: string;
+}
+
+interface Friend {
+  id: string;
+  display_name: string;
+  avatar_url: string | null;
 }
 
 const EMOJI_LIST = ['😀','😂','😍','🥰','😎','🤩','😘','🥳','✈️','🏖️','🏔️','🌍','🎉','❤️','🔥','👍','👋','🙏','💯','⭐','🌅','🗺️','🧳','🏕️','🚀','🍕','☕','🎶','📸','🌸'];
 
+type TabKey = 'messages' | 'groups' | 'requests';
+
 const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUserId }) => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'messages' | 'requests'>('messages');
+  const [activeTab, setActiveTab] = useState<TabKey>('messages');
+
+  // Selected conversation state. `selectedIsGroup` decides DM vs group rendering.
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [selectedChatUserId, setSelectedChatUserId] = useState<string | null>(null);
+  const [selectedIsGroup, setSelectedIsGroup] = useState(false);
+
   const [inputValue, setInputValue] = useState('');
   const [chatMessages, setChatMessages] = useState<Record<string, ChatMessage[]>>({});
   const [acceptedChats, setAcceptedChats] = useState<ChatListItem[]>([]);
+  const [groups, setGroups] = useState<GroupListItem[]>([]);
   const [tripRequests, setTripRequests] = useState<TripRequest[]>([]);
   const [showEmojis, setShowEmojis] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -61,9 +87,17 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
   const [selectedChatProfile, setSelectedChatProfile] = useState<{ display_name: string; avatar_url: string | null } | null>(null);
   const [openingTargetChat, setOpeningTargetChat] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  // Stable lookup of conversationId -> other participant userId. Populated by loadData and
-  // used by the realtime handler so decryption never races on stale React state.
+
+  // Group create / edit modal state
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [showGroupModal, setShowGroupModal] = useState<null | { mode: 'create' } | { mode: 'edit'; groupId: string }>(null);
+  const [groupTitle, setGroupTitle] = useState('');
+  const [selectedFriendIds, setSelectedFriendIds] = useState<Set<string>>(new Set());
+  const [groupCurrentMembers, setGroupCurrentMembers] = useState<Friend[]>([]);
+  const [savingGroup, setSavingGroup] = useState(false);
+
   const convToOtherUserIdRef = useRef<Record<string, string>>({});
+  const convIsGroupRef = useRef<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -71,10 +105,7 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
 
   const pendingRequests = useMemo(() => tripRequests.filter((r) => r.status === 'pending'), [tripRequests]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
+  const scrollToBottom = () => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); };
   useEffect(() => { scrollToBottom(); }, [chatMessages, selectedChat]);
 
   const stopRecordingTracks = () => {
@@ -83,9 +114,7 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
     mediaRecorderRef.current = null;
   };
 
-  useEffect(() => {
-    return () => stopRecordingTracks();
-  }, []);
+  useEffect(() => () => stopRecordingTracks(), []);
 
   const resolveOtherUserId = (conversationId: string, fallbackUserId?: string | null) => {
     if (fallbackUserId) return fallbackUserId;
@@ -117,27 +146,51 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
     return ensureDirectConversation(otherUserId);
   };
 
-  const loadMessagesForConversation = async (conversationId: string, otherUserIdArg?: string | null) => {
+  const decryptForMessage = async (m: any, conversationId: string, isGroup: boolean) => {
+    if (isGroup) return m.content; // group messages stored plaintext
+    const otherUserId = resolveOtherUserId(conversationId);
+    return user && otherUserId ? await decryptDirectMessageContent(m.content, user.id, otherUserId) : m.content;
+  };
+
+  const loadMessagesForConversation = async (conversationId: string, otherUserIdArg?: string | null, isGroup?: boolean) => {
+    const groupFlag = typeof isGroup === 'boolean' ? isGroup : convIsGroupRef.current[conversationId] || false;
+
     const { data } = await supabase
       .from('direct_messages')
       .select('id,sender_id,content,created_at,read_at')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true });
 
-    const otherUserId = resolveOtherUserId(conversationId, otherUserIdArg);
-    const mapped = await Promise.all(((data || []) as any[]).map(async (m) => ({
-      id: m.id,
-      senderId: m.sender_id,
-      content: user && otherUserId ? await decryptDirectMessageContent(m.content, user.id, otherUserId) : m.content,
-      timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      readAt: m.read_at,
-    })));
+    const rows = (data || []) as any[];
+
+    // For groups, fetch sender names so the chat can show "From: …" for each bubble.
+    let senderProfiles: Record<string, { display_name: string; avatar_url: string | null }> = {};
+    if (groupFlag && rows.length) {
+      const senderIds = [...new Set(rows.map((r) => r.sender_id))];
+      const { data: profs } = await supabase.from('profiles').select('id,display_name,avatar_url').in('id', senderIds);
+      (profs || []).forEach((p: any) => { senderProfiles[p.id] = { display_name: p.display_name, avatar_url: p.avatar_url }; });
+    }
+
+    const otherUserId = groupFlag ? null : resolveOtherUserId(conversationId, otherUserIdArg);
+    const mapped = await Promise.all(rows.map(async (m) => {
+      const content = groupFlag
+        ? m.content
+        : (user && otherUserId ? await decryptDirectMessageContent(m.content, user.id, otherUserId) : m.content);
+      return {
+        id: m.id,
+        senderId: m.sender_id,
+        senderName: groupFlag ? senderProfiles[m.sender_id]?.display_name : undefined,
+        senderAvatar: groupFlag ? senderProfiles[m.sender_id]?.avatar_url || undefined : undefined,
+        content,
+        timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        readAt: m.read_at,
+      } as ChatMessage;
+    }));
 
     setChatMessages((prev) => ({ ...prev, [conversationId]: mapped }));
 
-    // Mark unread messages from others as read
     if (user) {
-      const unread = ((data || []) as any[]).filter((m) => m.sender_id !== user.id && !m.read_at);
+      const unread = rows.filter((m) => m.sender_id !== user.id && !m.read_at);
       if (unread.length > 0) {
         const ids = unread.map((m) => m.id);
         await supabase.from('direct_messages').update({ read_at: new Date().toISOString() } as any).in('id', ids);
@@ -145,9 +198,23 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
     }
   };
 
+  const loadFriends = async () => {
+    if (!user) return;
+    const { data: rels } = await supabase
+      .from('follows')
+      .select('follower_id,following_id')
+      .eq('status', 'accepted')
+      .or(`follower_id.eq.${user.id},following_id.eq.${user.id}`);
+    const ids = [...new Set(((rels || []) as any[]).map((r) => r.follower_id === user.id ? r.following_id : r.follower_id))];
+    if (!ids.length) { setFriends([]); return; }
+    const { data: profs } = await supabase.from('profiles').select('id,display_name,avatar_url').in('id', ids);
+    setFriends((profs || []) as Friend[]);
+  };
+
   const loadData = async () => {
     if (!user) return;
 
+    // Incoming follow requests
     const { data: incoming } = await supabase
       .from('follows')
       .select('id,follower_id,status,created_at,profiles!follows_follower_id_fkey(display_name,avatar_url)')
@@ -165,48 +232,64 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
         status: 'pending',
         timestamp: new Date(r.created_at).toLocaleString(),
       }));
-
     setTripRequests(reqs);
 
-    const { data: acceptedRelations } = await supabase
-      .from('follows')
-      .select('follower_id,following_id,status')
-      .eq('status', 'accepted')
-      .or(`follower_id.eq.${user.id},following_id.eq.${user.id}`);
+    // ALL conversations the user participates in (DMs + groups)
+    const { data: myConvParts } = await supabase
+      .from('conversation_participants')
+      .select('conversation_id')
+      .eq('user_id', user.id);
+    const allConvIds = [...new Set(((myConvParts || []) as any[]).map((r) => r.conversation_id))];
 
-    const otherUserIds = [...new Set(((acceptedRelations || []) as any[]).map((r) => (r.follower_id === user.id ? r.following_id : r.follower_id)))];
-
-    if (!otherUserIds.length) {
+    if (!allConvIds.length) {
       setAcceptedChats([]);
+      setGroups([]);
       return;
     }
 
-    const { data: profileRows } = await supabase.from('profiles').select('id,display_name,avatar_url').in('id', otherUserIds);
-    const profileMap: Record<string, any> = {};
-    (profileRows || []).forEach((p: any) => { profileMap[p.id] = p; });
+    // Fetch conversation metadata to split DMs vs groups
+    const { data: convRows } = await supabase
+      .from('conversations')
+      .select('id, is_group, title, created_by')
+      .in('id', allConvIds);
+    const convMeta: Record<string, any> = {};
+    (convRows || []).forEach((c: any) => {
+      convMeta[c.id] = c;
+      convIsGroupRef.current[c.id] = !!c.is_group;
+    });
 
-    // Resolve all conversation ids in parallel.
-    const convResults = await Promise.all(
-      otherUserIds.map(async (otherId) => ({ otherId, conversationId: await findOrCreateConversation(otherId) }))
-    );
-    const validConvs = convResults.filter((c) => !!c.conversationId) as { otherId: string; conversationId: string }[];
+    // Fetch all participants for these conversations in one round-trip
+    const { data: allParts } = await supabase
+      .from('conversation_participants')
+      .select('conversation_id, user_id')
+      .in('conversation_id', allConvIds);
+    const partsByConv: Record<string, string[]> = {};
+    (allParts || []).forEach((p: any) => {
+      if (!partsByConv[p.conversation_id]) partsByConv[p.conversation_id] = [];
+      partsByConv[p.conversation_id].push(p.user_id);
+    });
 
-    // Update the stable conv -> other user lookup so realtime decryption never races.
-    validConvs.forEach((c) => { convToOtherUserIdRef.current[c.conversationId] = c.otherId; });
-
-    if (!validConvs.length) {
-      setAcceptedChats([]);
-      return;
+    // Profiles for all "other" users involved (DMs need this; groups optional)
+    const otherUserIdSet = new Set<string>();
+    Object.entries(partsByConv).forEach(([convId, uids]) => {
+      const meta = convMeta[convId];
+      if (meta && !meta.is_group) {
+        const other = uids.find((u) => u !== user.id);
+        if (other) otherUserIdSet.add(other);
+      }
+    });
+    const otherUserIds = [...otherUserIdSet];
+    let profileMap: Record<string, any> = {};
+    if (otherUserIds.length) {
+      const { data: profileRows } = await supabase.from('profiles').select('id,display_name,avatar_url').in('id', otherUserIds);
+      (profileRows || []).forEach((p: any) => { profileMap[p.id] = p; });
     }
 
-    const conversationIds = validConvs.map((c) => c.conversationId);
-
-    // Fetch every message in these conversations in a single round-trip, then derive last
-    // message + unread count per conversation client-side. This collapses 2N queries into 1.
+    // Last message + unread for every conversation in one query
     const { data: msgRows } = await supabase
       .from('direct_messages')
       .select('conversation_id,sender_id,content,created_at,read_at')
-      .in('conversation_id', conversationIds)
+      .in('conversation_id', allConvIds)
       .order('created_at', { ascending: false });
 
     const lastMsgByConv: Record<string, any> = {};
@@ -218,30 +301,49 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
       }
     });
 
-    const chats: ChatListItem[] = await Promise.all(
-      validConvs.map(async ({ otherId, conversationId }) => {
-        const lastMsg = lastMsgByConv[conversationId];
-        const lastMessageContent = lastMsg?.content
-          ? await decryptDirectMessageContent(lastMsg.content, user.id, otherId)
-          : '';
-        const lastTs = lastMsg?.created_at ? new Date(lastMsg.created_at).getTime() : 0;
-        return {
-          id: conversationId,
-          userId: otherId,
-          name: profileMap[otherId]?.display_name || 'Traveler',
-          avatar: profileMap[otherId]?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop&crop=face',
-          lastMessage: getMessagePreview(lastMessageContent) || 'Start chatting',
-          timestamp: lastMsg?.created_at ? new Date(lastMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-          unreadCount: unreadByConv[conversationId] || 0,
-          lastMessageAt: lastTs,
-        };
-      })
-    );
+    // Build DM chat list
+    const dmConvs = allConvIds.filter((id) => convMeta[id] && !convMeta[id].is_group);
+    const dms: ChatListItem[] = await Promise.all(dmConvs.map(async (conversationId) => {
+      const otherId = (partsByConv[conversationId] || []).find((u) => u !== user.id) || '';
+      convToOtherUserIdRef.current[conversationId] = otherId;
+      const lastMsg = lastMsgByConv[conversationId];
+      const lastMessageContent = lastMsg?.content && otherId
+        ? await decryptDirectMessageContent(lastMsg.content, user.id, otherId)
+        : '';
+      const lastTs = lastMsg?.created_at ? new Date(lastMsg.created_at).getTime() : 0;
+      return {
+        id: conversationId,
+        userId: otherId,
+        name: profileMap[otherId]?.display_name || 'Traveler',
+        avatar: profileMap[otherId]?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop&crop=face',
+        lastMessage: getMessagePreview(lastMessageContent) || 'Start chatting',
+        timestamp: lastMsg?.created_at ? new Date(lastMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+        unreadCount: unreadByConv[conversationId] || 0,
+        lastMessageAt: lastTs,
+      };
+    }));
+    dms.sort((a, b) => b.lastMessageAt - a.lastMessageAt);
+    setAcceptedChats(dms);
 
-    // Most recent conversation first; chats with no messages fall to the bottom.
-    chats.sort((a, b) => b.lastMessageAt - a.lastMessageAt);
-
-    setAcceptedChats(chats);
+    // Build group list
+    const groupConvs = allConvIds.filter((id) => convMeta[id] && convMeta[id].is_group);
+    const grps: GroupListItem[] = groupConvs.map((conversationId) => {
+      const meta = convMeta[conversationId];
+      const lastMsg = lastMsgByConv[conversationId];
+      const lastTs = lastMsg?.created_at ? new Date(lastMsg.created_at).getTime() : 0;
+      return {
+        id: conversationId,
+        title: meta?.title || 'Untitled group',
+        memberCount: (partsByConv[conversationId] || []).length,
+        lastMessage: lastMsg?.content ? getMessagePreview(lastMsg.content) : 'No messages yet',
+        timestamp: lastMsg?.created_at ? new Date(lastMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+        unreadCount: unreadByConv[conversationId] || 0,
+        lastMessageAt: lastTs,
+        createdBy: meta?.created_by,
+      };
+    });
+    grps.sort((a, b) => b.lastMessageAt - a.lastMessageAt);
+    setGroups(grps);
   };
 
   useEffect(() => {
@@ -251,36 +353,31 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
       setNotConnectedProfile(null);
     }
     loadData();
+    loadFriends();
 
     const channel = supabase
       .channel('messages-panel-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'follows' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversation_participants' }, () => loadData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'direct_messages' }, (payload: any) => {
         const newRow = payload?.new || payload?.old;
         const convId = newRow?.conversation_id;
         if (!convId) return;
-
-        // Prefer sender_id from the realtime payload — for the recipient this IS the other
-        // participant, which avoids any decryption race against still-loading state.
+        const isGroup = convIsGroupRef.current[convId];
         const senderId: string | undefined = newRow?.sender_id;
-        const otherFromPayload = senderId && senderId !== user.id ? senderId : undefined;
-        if (otherFromPayload) {
-          convToOtherUserIdRef.current[convId] = otherFromPayload;
-        }
-        const otherUserId = otherFromPayload || resolveOtherUserId(convId);
-
-        loadMessagesForConversation(convId, otherUserId);
-        // Refresh the chat list so the most-recent conversation bubbles to the top.
+        const otherFromPayload = !isGroup && senderId && senderId !== user.id ? senderId : undefined;
+        if (otherFromPayload) convToOtherUserIdRef.current[convId] = otherFromPayload;
+        const otherUserId = otherFromPayload || (!isGroup ? resolveOtherUserId(convId) : null);
+        loadMessagesForConversation(convId, otherUserId, isGroup);
         loadData();
       })
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [isOpen, user]);
 
-  // Auto-open chat with target user when specified
+  // Auto-open chat with target user (DM only)
   useEffect(() => {
     if (!isOpen || !user || !targetUserId) return;
     const autoOpen = async () => {
@@ -289,8 +386,8 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
       setSelectedChat(null);
       setSelectedChatUserId(null);
       setSelectedChatProfile(null);
+      setSelectedIsGroup(false);
 
-      // Run friendship check, profile fetch and conversation creation in parallel for snappy open.
       const [isFriend, profRes, conversationId] = await Promise.all([
         checkFriendship(targetUserId),
         supabase.from('profiles').select('display_name,avatar_url').eq('id', targetUserId).maybeSingle(),
@@ -311,8 +408,9 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
       setSelectedChatProfile(prof as any);
       if (conversationId) {
         convToOtherUserIdRef.current[conversationId] = targetUserId;
+        convIsGroupRef.current[conversationId] = false;
         setSelectedChatUserId(targetUserId);
-        await openChat(conversationId, targetUserId);
+        await openChat(conversationId, targetUserId, false);
         return;
       }
       setOpeningTargetChat(false);
@@ -326,22 +424,19 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
     setSelectedChat(null);
     setSelectedChatUserId(null);
     setSelectedChatProfile(null);
+    setSelectedIsGroup(false);
     setNotConnected(false);
     setNotConnectedProfile(null);
     setOpeningTargetChat(false);
     setShowEmojis(false);
+    setShowGroupModal(null);
   }, [isOpen]);
 
   const handleAcceptRequest = async (requestId: string) => {
     const request = tripRequests.find((r) => r.id === requestId);
     if (!request || !user) return;
-
     const { error } = await supabase.from('follows').update({ status: 'accepted' }).eq('id', requestId).eq('following_id', user.id);
-    if (error) {
-      toast({ title: 'Accept failed', description: error.message, variant: 'destructive' });
-      return;
-    }
-
+    if (error) { toast({ title: 'Accept failed', description: error.message, variant: 'destructive' }); return; }
     await findOrCreateConversation(request.userId);
     toast({ title: 'Request accepted ✅' });
     await loadData();
@@ -352,13 +447,15 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
     await loadData();
   };
 
-  const openChat = async (chatId: string, userId?: string) => {
-    setActiveTab('messages');
+  const openChat = async (chatId: string, userId?: string, isGroup?: boolean) => {
+    const groupFlag = typeof isGroup === 'boolean' ? isGroup : convIsGroupRef.current[chatId] || false;
+    setActiveTab(groupFlag ? 'groups' : 'messages');
     setOpeningTargetChat(true);
     setNotConnected(false);
     setNotConnectedProfile(null);
     setSelectedChat(chatId);
-    if (userId) {
+    setSelectedIsGroup(groupFlag);
+    if (userId && !groupFlag) {
       setSelectedChatUserId(userId);
       const existing = acceptedChats.find((c) => c.userId === userId);
       if (existing) {
@@ -367,26 +464,33 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
         const { data: prof } = await supabase.from('profiles').select('display_name,avatar_url').eq('id', userId).maybeSingle();
         if (prof) setSelectedChatProfile(prof as any);
       }
+    } else if (groupFlag) {
+      setSelectedChatUserId(null);
+      const grp = groups.find((g) => g.id === chatId);
+      setSelectedChatProfile(grp ? { display_name: grp.title, avatar_url: null } : null);
     }
     setShowEmojis(false);
-    await loadMessagesForConversation(chatId, userId);
+    await loadMessagesForConversation(chatId, userId, groupFlag);
     setOpeningTargetChat(false);
   };
 
-  const sendEncryptedContent = async (content: string) => {
+  const sendContent = async (content: string) => {
     if (!selectedChat || !user) return false;
 
-    const otherUserId = resolveOtherUserId(selectedChat, selectedChatUserId);
-    if (!otherUserId) {
-      toast({ title: 'Unable to open secure chat', description: 'Please reopen this conversation.', variant: 'destructive' });
-      return false;
+    let storedContent = content;
+    if (!selectedIsGroup) {
+      const otherUserId = resolveOtherUserId(selectedChat, selectedChatUserId);
+      if (!otherUserId) {
+        toast({ title: 'Unable to open secure chat', description: 'Please reopen this conversation.', variant: 'destructive' });
+        return false;
+      }
+      storedContent = await encryptDirectMessageContent(content, user.id, otherUserId);
     }
 
-    const encryptedContent = await encryptDirectMessageContent(content, user.id, otherUserId);
     const { error } = await supabase.from('direct_messages').insert({
       conversation_id: selectedChat,
       sender_id: user.id,
-      content: encryptedContent,
+      content: storedContent,
     });
 
     if (error) {
@@ -394,17 +498,16 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
       return false;
     }
 
-    await loadMessagesForConversation(selectedChat, otherUserId);
+    await loadMessagesForConversation(selectedChat, selectedChatUserId, selectedIsGroup);
     return true;
   };
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || !selectedChat || !user) return;
-
     const text = inputValue.trim();
     setInputValue('');
     setShowEmojis(false);
-    await sendEncryptedContent(text);
+    await sendContent(text);
   };
 
   const handleMediaUpload = async (file: File) => {
@@ -417,9 +520,8 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
       const { error: uploadError } = await supabase.storage.from('post-media').upload(path, processed, { upsert: true });
       if (uploadError) throw uploadError;
       const publicUrl = supabase.storage.from('post-media').getPublicUrl(path).data.publicUrl;
-
-      await sendEncryptedContent(publicUrl);
-    } catch (e) {
+      await sendContent(publicUrl);
+    } catch {
       toast({ title: 'Upload failed', variant: 'destructive' });
     } finally {
       setUploading(false);
@@ -427,21 +529,13 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
   };
 
   const toggleAudioRecording = async () => {
-    if (isRecording) {
-      mediaRecorderRef.current?.stop();
-      return;
-    }
-
+    if (isRecording) { mediaRecorderRef.current?.stop(); return; }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       recordingStreamRef.current = stream;
       const chunks: BlobPart[] = [];
       const recorder = new MediaRecorder(stream);
-
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) chunks.push(event.data);
-      };
-
+      recorder.ondataavailable = (event) => { if (event.data.size > 0) chunks.push(event.data); };
       recorder.onstop = async () => {
         setIsRecording(false);
         const audioBlob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
@@ -449,7 +543,6 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
         stopRecordingTracks();
         await handleMediaUpload(audioFile);
       };
-
       mediaRecorderRef.current = recorder;
       recorder.start();
       setIsRecording(true);
@@ -461,12 +554,115 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
     }
   };
 
-  const isMediaUrl = (content: string) => {
-    return content.match(/\.(jpg|jpeg|png|gif|webp|mp4|webm|mov|mp3|wav|m4a|ogg|aac)(\?.*)?$/i) || content.includes('supabase.co/storage');
-  };
-
+  const isMediaUrl = (content: string) => content.match(/\.(jpg|jpeg|png|gif|webp|mp4|webm|mov|mp3|wav|m4a|ogg|aac)(\?.*)?$/i) || content.includes('supabase.co/storage');
   const isVideoUrl = (content: string) => content.match(/\.(mp4|webm|mov)(\?.*)?$/i);
   const isAudioUrl = (content: string) => content.match(/\.(mp3|wav|m4a|ogg|aac|webm)(\?.*)?$/i) && !isVideoUrl(content);
+
+  // ----------------- Group create / edit -----------------
+  const openCreateGroup = () => {
+    setGroupTitle('');
+    setSelectedFriendIds(new Set());
+    setShowGroupModal({ mode: 'create' });
+  };
+
+  const openEditGroup = async (groupId: string) => {
+    const grp = groups.find((g) => g.id === groupId);
+    setGroupTitle(grp?.title || '');
+    // Fetch current participants
+    const { data: parts } = await supabase
+      .from('conversation_participants')
+      .select('user_id')
+      .eq('conversation_id', groupId);
+    const memberIds = ((parts || []) as any[]).map((p) => p.user_id).filter((id) => id !== user?.id);
+    const memberSet = new Set(memberIds);
+    setSelectedFriendIds(memberSet);
+    if (memberIds.length) {
+      const { data: profs } = await supabase.from('profiles').select('id,display_name,avatar_url').in('id', memberIds);
+      setGroupCurrentMembers((profs || []) as Friend[]);
+    } else {
+      setGroupCurrentMembers([]);
+    }
+    setShowGroupModal({ mode: 'edit', groupId });
+  };
+
+  const toggleFriendSelected = (id: string) => {
+    setSelectedFriendIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSaveGroup = async () => {
+    if (!user) return;
+    if (!groupTitle.trim()) { toast({ title: 'Group name is required', variant: 'destructive' }); return; }
+    if (selectedFriendIds.size === 0) { toast({ title: 'Add at least one friend', variant: 'destructive' }); return; }
+
+    setSavingGroup(true);
+    try {
+      if (showGroupModal && showGroupModal.mode === 'create') {
+        // Create the group conversation, then add self + selected friends.
+        const { data: convRow, error: convErr } = await supabase
+          .from('conversations')
+          .insert({ created_by: user.id, is_group: true, title: groupTitle.trim() })
+          .select('id')
+          .single();
+        if (convErr || !convRow) throw convErr || new Error('Could not create group');
+
+        const inserts = [
+          { conversation_id: convRow.id, user_id: user.id },
+          ...Array.from(selectedFriendIds).map((uid) => ({ conversation_id: convRow.id, user_id: uid })),
+        ];
+        const { error: partsErr } = await supabase.from('conversation_participants').insert(inserts);
+        if (partsErr) throw partsErr;
+
+        toast({ title: 'Group created 🎉' });
+        setShowGroupModal(null);
+        await loadData();
+      } else if (showGroupModal && showGroupModal.mode === 'edit') {
+        const groupId = showGroupModal.groupId;
+        // Update title
+        await supabase.from('conversations').update({ title: groupTitle.trim() }).eq('id', groupId);
+
+        // Compute add/remove
+        const currentIds = new Set(groupCurrentMembers.map((m) => m.id));
+        const desiredIds = new Set(selectedFriendIds);
+        const toAdd = [...desiredIds].filter((id) => !currentIds.has(id));
+        const toRemove = [...currentIds].filter((id) => !desiredIds.has(id));
+
+        if (toAdd.length) {
+          await supabase.from('conversation_participants').insert(toAdd.map((uid) => ({ conversation_id: groupId, user_id: uid })));
+        }
+        if (toRemove.length) {
+          await supabase.from('conversation_participants').delete().eq('conversation_id', groupId).in('user_id', toRemove);
+        }
+        toast({ title: 'Group updated ✅' });
+        setShowGroupModal(null);
+        await loadData();
+      }
+    } catch (e: any) {
+      toast({ title: 'Failed', description: e?.message || 'Could not save group', variant: 'destructive' });
+    } finally {
+      setSavingGroup(false);
+    }
+  };
+
+  const handleLeaveOrDeleteGroup = async (groupId: string, isCreator: boolean) => {
+    if (!user) return;
+    const confirmText = isCreator ? 'Delete this group for everyone?' : 'Leave this group?';
+    if (!confirm(confirmText)) return;
+    if (isCreator) {
+      await supabase.from('conversations').delete().eq('id', groupId);
+    } else {
+      await supabase.from('conversation_participants').delete().eq('conversation_id', groupId).eq('user_id', user.id);
+    }
+    if (selectedChat === groupId) {
+      setSelectedChat(null);
+      setSelectedIsGroup(false);
+    }
+    await loadData();
+    toast({ title: isCreator ? 'Group deleted' : 'You left the group' });
+  };
 
   if (!isOpen) return null;
 
@@ -488,24 +684,18 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
     );
   }
 
-  // "Connect first" screen
   if (notConnected && targetUserId) {
     return (
       <div className="fixed top-20 bottom-6 right-6 z-40 w-96 bg-background rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden animate-fade-in">
         <div className="px-4 py-3 flex items-center justify-between border-b border-border bg-card">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center"><MessageCircle className="w-5 h-5 text-white" /></div>
-            <h3 className="font-semibold text-foreground">Messages</h3>
-          </div>
+          <div className="flex items-center gap-2"><div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center"><MessageCircle className="w-5 h-5 text-white" /></div><h3 className="font-semibold text-foreground">Messages</h3></div>
           <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center"><X className="w-4 h-4" /></button>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4">
           <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center">
             {notConnectedProfile?.avatar_url ? (
               <img src={notConnectedProfile.avatar_url} alt="" className="w-20 h-20 rounded-full object-cover" />
-            ) : (
-              <Lock className="w-10 h-10 text-muted-foreground" />
-            )}
+            ) : <Lock className="w-10 h-10 text-muted-foreground" />}
           </div>
           <div>
             <h3 className="text-lg font-semibold text-foreground">{notConnectedProfile?.display_name || 'This user'}</h3>
@@ -513,9 +703,7 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
           </div>
           <div className="w-full p-4 bg-primary/5 rounded-2xl border border-primary/10">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
-                <UserPlus className="w-5 h-5 text-primary" />
-              </div>
+              <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center"><UserPlus className="w-5 h-5 text-primary" /></div>
               <div className="text-left">
                 <p className="text-sm font-semibold text-foreground">Connect First</p>
                 <p className="text-xs text-muted-foreground">Send a follow request and wait for acceptance to chat</p>
@@ -527,59 +715,81 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
     );
   }
 
-  // Chat view
+  // Active chat view (DM or group)
   if (selectedChat) {
-    const chat = acceptedChats.find((c) => c.id === selectedChat);
-    const headerName = chat?.name || selectedChatProfile?.display_name || 'Chat';
-    const headerAvatar = chat?.avatar || selectedChatProfile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop&crop=face';
+    let headerName = 'Chat';
+    let headerAvatar = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop&crop=face';
+    let isGroupCreator = false;
+    if (selectedIsGroup) {
+      const grp = groups.find((g) => g.id === selectedChat);
+      headerName = grp?.title || selectedChatProfile?.display_name || 'Group';
+      isGroupCreator = grp?.createdBy === user?.id;
+    } else {
+      const chat = acceptedChats.find((c) => c.id === selectedChat);
+      headerName = chat?.name || selectedChatProfile?.display_name || 'Chat';
+      headerAvatar = chat?.avatar || selectedChatProfile?.avatar_url || headerAvatar;
+    }
     const msgs = chatMessages[selectedChat] || [];
 
     return (
       <div className="fixed top-20 bottom-6 right-6 z-40 w-96 bg-background rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden animate-fade-in">
         <div className="px-4 py-3 flex items-center gap-3 border-b border-border bg-card">
-          <button onClick={() => { setSelectedChat(null); setSelectedChatUserId(null); setSelectedChatProfile(null); setShowEmojis(false); }} className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center"><ChevronLeft className="w-5 h-5" /></button>
-          <img src={headerAvatar} alt={headerName} className="w-10 h-10 rounded-full object-cover" />
-          <div className="flex-1"><h3 className="font-semibold text-foreground text-sm">{headerName}</h3><p className="text-xs text-success flex items-center gap-1"><span className="w-1.5 h-1.5 bg-success rounded-full" />Connected</p></div>
+          <button onClick={() => { setSelectedChat(null); setSelectedChatUserId(null); setSelectedChatProfile(null); setSelectedIsGroup(false); setShowEmojis(false); }} className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center"><ChevronLeft className="w-5 h-5" /></button>
+          {selectedIsGroup ? (
+            <div className="w-10 h-10 gradient-primary rounded-full flex items-center justify-center"><Users className="w-5 h-5 text-white" /></div>
+          ) : (
+            <img src={headerAvatar} alt={headerName} className="w-10 h-10 rounded-full object-cover" />
+          )}
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-foreground text-sm truncate">{headerName}</h3>
+            {selectedIsGroup ? (
+              <p className="text-xs text-muted-foreground">{groups.find((g) => g.id === selectedChat)?.memberCount || 0} members</p>
+            ) : (
+              <p className="text-xs text-success flex items-center gap-1"><span className="w-1.5 h-1.5 bg-success rounded-full" />Connected</p>
+            )}
+          </div>
+          {selectedIsGroup && (
+            <>
+              <button onClick={() => openEditGroup(selectedChat)} className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center" title={isGroupCreator ? 'Edit members' : 'Group info'}>
+                <Settings className="w-4 h-4" />
+              </button>
+              <button onClick={() => handleLeaveOrDeleteGroup(selectedChat, isGroupCreator)} className="w-8 h-8 rounded-full hover:bg-destructive/10 text-destructive flex items-center justify-center" title={isGroupCreator ? 'Delete group' : 'Leave group'}>
+                {isGroupCreator ? <Trash2 className="w-4 h-4" /> : <UserMinus className="w-4 h-4" />}
+              </button>
+            </>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {msgs.length === 0 && (
-            <div className="text-center py-8">
-              <p className="text-sm text-muted-foreground">No messages yet. Say hello! 👋</p>
-            </div>
+            <div className="text-center py-8"><p className="text-sm text-muted-foreground">No messages yet. Say hello! 👋</p></div>
           )}
           {msgs.map((msg, idx) => {
             const isMe = msg.senderId === user?.id;
             const isMedia = isMediaUrl(msg.content);
             const isVideo = isVideoUrl(msg.content);
             const isAudio = isAudioUrl(msg.content);
-            // Check if next message from same sender has read_at (for last message blue tick)
             const isLastFromMe = isMe && (idx === msgs.length - 1 || msgs[idx + 1]?.senderId !== user?.id);
-
             return (
-              <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+              <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} gap-2`}>
+                {selectedIsGroup && !isMe && (
+                  <img src={msg.senderAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&h=80&fit=crop&crop=face'} alt={msg.senderName || ''} className="w-7 h-7 rounded-full object-cover flex-shrink-0 mt-1" />
+                )}
                 <div className={`max-w-[75%] rounded-2xl overflow-hidden ${isMe ? 'gradient-primary text-primary-foreground rounded-br-md' : 'bg-muted text-foreground rounded-bl-md'}`}>
+                  {selectedIsGroup && !isMe && msg.senderName && (
+                    <p className="px-3 pt-2 text-[11px] font-semibold text-primary">{msg.senderName}</p>
+                  )}
                   {isMedia ? (
-                    isVideo ? (
-                      <video src={msg.content} className="w-full max-h-48 object-cover" controls />
-                    ) : isAudio ? (
-                      <div className="px-3 pt-3">
-                        <audio src={msg.content} className="w-full min-w-[220px]" controls />
-                      </div>
-                    ) : (
-                      <img src={msg.content} alt="Shared media" className="w-full max-h-48 object-cover cursor-pointer" onClick={() => window.open(msg.content, '_blank')} />
-                    )
+                    isVideo ? <video src={msg.content} className="w-full max-h-48 object-cover" controls />
+                    : isAudio ? <div className="px-3 pt-3"><audio src={msg.content} className="w-full min-w-[220px]" controls /></div>
+                    : <img src={msg.content} alt="Shared media" className="w-full max-h-48 object-cover cursor-pointer" onClick={() => window.open(msg.content, '_blank')} />
                   ) : (
-                    <p className="text-sm px-4 py-2">{msg.content}</p>
+                    <p className="text-sm px-4 py-2 whitespace-pre-wrap break-words">{msg.content}</p>
                   )}
                   <div className={`flex items-center gap-1 px-3 pb-1.5 ${isMe ? 'justify-end' : ''}`}>
                     <span className={`text-[10px] ${isMe ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{msg.timestamp}</span>
-                    {isMe && isLastFromMe && (
-                      msg.readAt ? (
-                        <CheckCheck className="w-3.5 h-3.5 text-blue-300" />
-                      ) : (
-                        <Check className="w-3.5 h-3.5 text-primary-foreground/50" />
-                      )
+                    {isMe && isLastFromMe && !selectedIsGroup && (
+                      msg.readAt ? <CheckCheck className="w-3.5 h-3.5 text-blue-300" /> : <Check className="w-3.5 h-3.5 text-primary-foreground/50" />
                     )}
                   </div>
                 </div>
@@ -589,12 +799,11 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Emoji picker */}
         {showEmojis && (
           <div className="px-3 py-2 bg-card border-t border-border">
             <div className="flex flex-wrap gap-1.5">
               {EMOJI_LIST.map((emoji) => (
-                <button key={emoji} onClick={() => { setInputValue(prev => prev + emoji); }} className="w-8 h-8 text-lg hover:bg-muted rounded-lg flex items-center justify-center transition-colors">
+                <button key={emoji} onClick={() => setInputValue(prev => prev + emoji)} className="w-8 h-8 text-lg hover:bg-muted rounded-lg flex items-center justify-center">
                   {emoji}
                 </button>
               ))}
@@ -604,9 +813,7 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
 
         <div className="p-3 bg-card border-t border-border">
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowEmojis(!showEmojis)} className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${showEmojis ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'}`}>
-              <Smile className="w-5 h-5" />
-            </button>
+            <button onClick={() => setShowEmojis(!showEmojis)} className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${showEmojis ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'}`}><Smile className="w-5 h-5" /></button>
             <button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="w-10 h-10 rounded-full hover:bg-muted flex items-center justify-center text-muted-foreground transition-colors">
               {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImageIcon className="w-5 h-5" />}
             </button>
@@ -618,51 +825,130 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
             <Button onClick={handleSendMessage} disabled={!inputValue.trim()} size="sm" className="w-10 h-10 p-0 rounded-full gradient-primary"><Send className="w-4 h-4" /></Button>
           </div>
         </div>
+
+        {showGroupModal && <GroupModalRenderer />}
       </div>
     );
   }
 
-  // Chat list view
+  // ----------- Group create/edit modal renderer (used in both list and chat views) -----------
+  function GroupModalRenderer() {
+    if (!showGroupModal) return null;
+    const isEdit = showGroupModal.mode === 'edit';
+    return (
+      <div className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowGroupModal(null)}>
+        <div className="w-full max-w-md bg-background rounded-3xl p-6 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-foreground">{isEdit ? 'Edit group' : 'New group chat'}</h2>
+            <button onClick={() => setShowGroupModal(null)} className="p-1.5 rounded-lg hover:bg-muted"><X className="w-5 h-5" /></button>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Group name</label>
+            <input value={groupTitle} onChange={(e) => setGroupTitle(e.target.value)} placeholder="e.g. Goa squad" className="w-full h-10 px-3 bg-muted rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">{isEdit ? 'Members' : 'Add friends'}</label>
+            {friends.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-2">You don't have any mutual friends yet. Connect with travelers first.</p>
+            ) : (
+              <div className="max-h-64 overflow-y-auto space-y-1">
+                {friends.map((f) => {
+                  const checked = selectedFriendIds.has(f.id);
+                  return (
+                    <label key={f.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-muted cursor-pointer">
+                      <input type="checkbox" checked={checked} onChange={() => toggleFriendSelected(f.id)} className="w-4 h-4 accent-primary" />
+                      <img src={f.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&h=80&fit=crop&crop=face'} alt={f.display_name} className="w-8 h-8 rounded-full object-cover" />
+                      <span className="text-sm text-foreground">{f.display_name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <Button onClick={handleSaveGroup} disabled={savingGroup} className="w-full h-11 gradient-primary text-primary-foreground">
+            {savingGroup ? <Loader2 className="w-4 h-4 animate-spin" /> : (isEdit ? 'Save changes' : 'Create group')}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // List view (Chats / Groups / Requests)
   return (
     <div className="fixed top-20 bottom-6 right-6 z-40 w-96 bg-background rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden animate-fade-in">
       <div className="px-4 py-3 flex items-center justify-between border-b border-border bg-card">
-        <div className="flex items-center gap-2"><div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center"><MessageCircle className="w-5 h-5 text-white" /></div><div><h3 className="font-semibold text-foreground">Messages</h3><p className="text-xs text-muted-foreground">Real follow requests & DMs</p></div></div>
+        <div className="flex items-center gap-2"><div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center"><MessageCircle className="w-5 h-5 text-white" /></div><div><h3 className="font-semibold text-foreground">Messages</h3><p className="text-xs text-muted-foreground">Chats, groups & requests</p></div></div>
         <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center"><X className="w-4 h-4" /></button>
       </div>
 
       <div className="flex border-b border-border">
-        <button onClick={() => setActiveTab('messages')} className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === 'messages' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'}`}><div className="flex items-center justify-center gap-2"><MessageCircle className="w-4 h-4" />Chats</div></button>
-        <button onClick={() => setActiveTab('requests')} className={`flex-1 px-4 py-3 text-sm font-medium transition-colors relative ${activeTab === 'requests' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'}`}><div className="flex items-center justify-center gap-2"><Users className="w-4 h-4" />Requests{pendingRequests.length > 0 && <span className="w-5 h-5 bg-secondary text-secondary-foreground text-xs rounded-full flex items-center justify-center">{pendingRequests.length}</span>}</div></button>
+        <button onClick={() => setActiveTab('messages')} className={`flex-1 px-3 py-3 text-sm font-medium transition-colors ${activeTab === 'messages' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+          <div className="flex items-center justify-center gap-1.5"><MessageCircle className="w-4 h-4" />Chats</div>
+        </button>
+        <button onClick={() => setActiveTab('groups')} className={`flex-1 px-3 py-3 text-sm font-medium transition-colors ${activeTab === 'groups' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+          <div className="flex items-center justify-center gap-1.5"><Users className="w-4 h-4" />Groups</div>
+        </button>
+        <button onClick={() => setActiveTab('requests')} className={`flex-1 px-3 py-3 text-sm font-medium transition-colors relative ${activeTab === 'requests' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+          <div className="flex items-center justify-center gap-1.5"><UserPlus className="w-4 h-4" />Requests
+            {pendingRequests.length > 0 && <span className="w-5 h-5 bg-secondary text-secondary-foreground text-xs rounded-full flex items-center justify-center">{pendingRequests.length}</span>}
+          </div>
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {activeTab === 'messages' ? (
+        {activeTab === 'messages' && (
           <div className="divide-y divide-border">
             {acceptedChats.length === 0 ? (
               <div className="p-8 text-center"><div className="w-16 h-16 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center"><MessageCircle className="w-8 h-8 text-muted-foreground" /></div><p className="text-muted-foreground text-sm">No conversations yet</p><p className="text-xs text-muted-foreground mt-1">Connect with travelers to start chatting</p></div>
             ) : (
               acceptedChats.map((chat) => (
-                <button key={chat.id} onClick={() => openChat(chat.id, chat.userId)} className="w-full p-4 flex items-center gap-3 hover:bg-muted/50 transition-colors text-left">
+                <button key={chat.id} onClick={() => openChat(chat.id, chat.userId, false)} className="w-full p-4 flex items-center gap-3 hover:bg-muted/50 transition-colors text-left">
                   <div className="relative">
                     <img src={chat.avatar} alt={chat.name} className="w-12 h-12 rounded-full object-cover" />
-                    {chat.unreadCount > 0 && (
-                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-secondary text-white text-[10px] font-bold rounded-full flex items-center justify-center">{chat.unreadCount}</span>
-                    )}
+                    {chat.unreadCount > 0 && <span className="absolute -top-1 -right-1 w-5 h-5 bg-secondary text-white text-[10px] font-bold rounded-full flex items-center justify-center">{chat.unreadCount}</span>}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <h4 className={`font-medium text-sm ${chat.unreadCount > 0 ? 'text-foreground font-semibold' : 'text-foreground'}`}>{chat.name}</h4>
-                      <span className="text-xs text-muted-foreground">{chat.timestamp}</span>
-                    </div>
-                    <p className={`text-sm truncate ${chat.unreadCount > 0 ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
-                      {chat.lastMessage}
-                    </p>
+                    <div className="flex items-center justify-between"><h4 className={`font-medium text-sm ${chat.unreadCount > 0 ? 'text-foreground font-semibold' : 'text-foreground'}`}>{chat.name}</h4><span className="text-xs text-muted-foreground">{chat.timestamp}</span></div>
+                    <p className={`text-sm truncate ${chat.unreadCount > 0 ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>{chat.lastMessage}</p>
                   </div>
                 </button>
               ))
             )}
           </div>
-        ) : (
+        )}
+
+        {activeTab === 'groups' && (
+          <div>
+            <div className="p-3 border-b border-border">
+              <Button onClick={openCreateGroup} className="w-full gradient-primary text-primary-foreground rounded-xl">
+                <Plus className="w-4 h-4 mr-1" /> New group chat
+              </Button>
+            </div>
+            <div className="divide-y divide-border">
+              {groups.length === 0 ? (
+                <div className="p-8 text-center"><div className="w-16 h-16 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center"><Users className="w-8 h-8 text-muted-foreground" /></div><p className="text-muted-foreground text-sm">No group chats yet</p><p className="text-xs text-muted-foreground mt-1">Tap "New group chat" to create one</p></div>
+              ) : (
+                groups.map((g) => (
+                  <button key={g.id} onClick={() => openChat(g.id, undefined, true)} className="w-full p-4 flex items-center gap-3 hover:bg-muted/50 transition-colors text-left">
+                    <div className="relative">
+                      <div className="w-12 h-12 gradient-primary rounded-full flex items-center justify-center"><Users className="w-6 h-6 text-white" /></div>
+                      {g.unreadCount > 0 && <span className="absolute -top-1 -right-1 w-5 h-5 bg-secondary text-white text-[10px] font-bold rounded-full flex items-center justify-center">{g.unreadCount}</span>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <h4 className={`font-medium text-sm ${g.unreadCount > 0 ? 'text-foreground font-semibold' : 'text-foreground'} truncate`}>{g.title}</h4>
+                        <span className="text-xs text-muted-foreground flex-shrink-0">{g.timestamp}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">{g.memberCount} members · {g.lastMessage}</p>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'requests' && (
           <div className="divide-y divide-border">
             {tripRequests.length === 0 ? (
               <div className="p-8 text-center"><div className="w-16 h-16 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center"><UserPlus className="w-8 h-8 text-muted-foreground" /></div><p className="text-muted-foreground text-sm">No follow requests</p></div>
@@ -692,6 +978,8 @@ const MessagesPanel: React.FC<MessagesPanelProps> = ({ isOpen, onClose, targetUs
           </div>
         )}
       </div>
+
+      {showGroupModal && <GroupModalRenderer />}
     </div>
   );
 };

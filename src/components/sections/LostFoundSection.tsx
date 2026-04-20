@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/hooks/use-toast';
 import { compressImage } from '@/lib/imageCompression';
 import { LOCATION_SUGGESTIONS } from '@/lib/locations';
-import { Plus, MapPin, Phone, User, CheckCircle2, X, Loader2, Camera, Trash2 } from 'lucide-react';
+import { Plus, MapPin, Phone, CheckCircle2, X, Loader2, Camera, Trash2, Search } from 'lucide-react';
 
 interface LostFoundItem {
   id: string;
@@ -27,8 +27,6 @@ const RedStar: React.FC = () => <span className="text-destructive">*</span>;
 
 const LostFoundSection: React.FC = () => {
   const { user } = useAuth();
-  // Default landing tab is "found" (showing all open lost posts so finders can browse).
-  const [tab, setTab] = useState<'lost' | 'found'>('found');
   const [items, setItems] = useState<LostFoundItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -46,7 +44,7 @@ const LostFoundSection: React.FC = () => {
 
   const loadItems = async () => {
     setLoading(true);
-    // Always load lost items (these are the posts users browse on the Found page).
+    // Single feed: every "lost" post posted by anyone shows up here for finders to browse.
     const { data, error } = await supabase
       .from('lost_found_items')
       .select('*')
@@ -147,30 +145,12 @@ const LostFoundSection: React.FC = () => {
   const visibleItems = useMemo(() => items.filter((i) => i.status === 'open'), [items]);
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+    <div className="max-w-3xl mx-auto px-4 py-6 space-y-6 relative min-h-[60vh]">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gradient font-display">Lost &amp; Found</h1>
-          <p className="text-sm text-muted-foreground mt-1">Help travelers reunite with their lost items.</p>
+          <p className="text-sm text-muted-foreground mt-1">Browse items travelers have lost — help reunite them with the owner.</p>
         </div>
-        {/* Only the Lost tab can create a post — the Found tab is purely a browsing feed. */}
-        {tab === 'lost' && (
-          <Button onClick={() => setShowCreate(true)} className="gradient-primary text-primary-foreground rounded-xl shadow-glow">
-            <Plus className="w-4 h-4 mr-1" /> Post lost item
-          </Button>
-        )}
-      </div>
-
-      <div className="flex items-center gap-2 p-1 bg-muted/50 rounded-2xl w-full max-w-md">
-        {(['found', 'lost'] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`flex-1 px-4 py-2 rounded-xl text-sm font-medium transition-all ${tab === t ? 'gradient-primary text-primary-foreground shadow-md' : 'text-muted-foreground hover:text-foreground'}`}
-          >
-            {t === 'found' ? 'Found items' : 'Lost items'}
-          </button>
-        ))}
       </div>
 
       {loading ? (
@@ -179,9 +159,9 @@ const LostFoundSection: React.FC = () => {
         </div>
       ) : visibleItems.length === 0 ? (
         <div className="text-center py-16 border border-dashed border-border rounded-2xl">
-          <p className="text-muted-foreground">
-            {tab === 'lost' ? 'No lost items posted yet.' : 'No lost items to browse yet.'}
-          </p>
+          <Search className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+          <p className="text-muted-foreground">No lost items posted yet.</p>
+          <p className="text-xs text-muted-foreground mt-1">Tap the + button to post one.</p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
@@ -224,7 +204,16 @@ const LostFoundSection: React.FC = () => {
         </div>
       )}
 
-      {showCreate && tab === 'lost' && (
+      {/* Floating "Post lost item" button — corner of the page. */}
+      <button
+        onClick={() => setShowCreate(true)}
+        aria-label="Post lost item"
+        className="fixed bottom-28 right-6 z-30 h-14 px-5 gradient-primary text-primary-foreground rounded-full shadow-glow hover:scale-105 active:scale-95 transition-transform flex items-center gap-2 font-semibold"
+      >
+        <Plus className="w-5 h-5" /> <span className="hidden sm:inline">Post lost item</span>
+      </button>
+
+      {showCreate && (
         <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-lg bg-background rounded-3xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">

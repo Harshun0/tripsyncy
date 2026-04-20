@@ -22,6 +22,7 @@ interface ScoredProfile extends RecommendedProfile {
 
 interface RecommendedSectionProps {
   onMessageUser?: (userId: string) => void;
+  onViewUserProfile?: (userId: string) => void;
 }
 
 function computeScore(userInterests: string[], travelerInterests: string[]): { score: number; shared: string[] } {
@@ -33,7 +34,7 @@ function computeScore(userInterests: string[], travelerInterests: string[]): { s
   return { score: Math.max(jaccardScore, 5), shared };
 }
 
-const RecommendedSection: React.FC<RecommendedSectionProps> = ({ onMessageUser }) => {
+const RecommendedSection: React.FC<RecommendedSectionProps> = ({ onMessageUser, onViewUserProfile }) => {
   const { user, profile } = useAuth();
   const [travelers, setTravelers] = useState<RecommendedProfile[]>([]);
   const [followMap, setFollowMap] = useState<Record<string, string>>({});
@@ -117,7 +118,14 @@ const RecommendedSection: React.FC<RecommendedSectionProps> = ({ onMessageUser }
           const scorePercent = traveler.score;
 
           return (
-            <div key={traveler.id} className="travel-card group hover:shadow-xl transition-all duration-300">
+            <div
+              key={traveler.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => onViewUserProfile?.(traveler.id)}
+              onKeyDown={(e) => { if (e.key === 'Enter') onViewUserProfile?.(traveler.id); }}
+              className="travel-card group hover:shadow-xl transition-all duration-300 cursor-pointer"
+            >
               {/* Top: avatar + name + score */}
               <div className="flex items-start gap-4 mb-4">
                 <div className="relative flex-shrink-0">
@@ -139,7 +147,7 @@ const RecommendedSection: React.FC<RecommendedSectionProps> = ({ onMessageUser }
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <h3 className="font-semibold text-foreground truncate">{traveler.display_name}</h3>
+                    <h3 className="font-semibold text-foreground truncate hover:text-primary transition-colors">{traveler.display_name}</h3>
                     {isPrivate && <Lock className="w-3 h-3 text-muted-foreground flex-shrink-0" />}
                   </div>
                   <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
@@ -195,7 +203,7 @@ const RecommendedSection: React.FC<RecommendedSectionProps> = ({ onMessageUser }
 
               {/* Actions */}
               <div className="flex items-center justify-between pt-4 border-t border-border">
-                <Button size="sm" variant="outline" className="rounded-full h-9 px-3" onClick={() => onMessageUser?.(traveler.id)}>
+                <Button size="sm" variant="outline" className="rounded-full h-9 px-3" onClick={(e) => { e.stopPropagation(); onMessageUser?.(traveler.id); }}>
                   <MessageCircle className="w-4 h-4 mr-1" />Message
                 </Button>
                 <Button
@@ -205,7 +213,7 @@ const RecommendedSection: React.FC<RecommendedSectionProps> = ({ onMessageUser }
                     status === 'pending' ? 'bg-secondary text-secondary-foreground' :
                     'gradient-primary text-white'
                   }`}
-                  onClick={() => handleFollow(traveler.id, traveler.display_name, isPrivate)}
+                  onClick={(e) => { e.stopPropagation(); handleFollow(traveler.id, traveler.display_name, isPrivate); }}
                 >
                   {status === 'accepted' ? <><UserCheck className="w-4 h-4 mr-1" />Following</> :
                    status === 'pending' ? <><UserPlus className="w-4 h-4 mr-1" />Requested</> :
