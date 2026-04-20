@@ -351,6 +351,16 @@ const FeedSection: React.FC<FeedSectionProps> = ({ onViewUserProfile, onViewPost
                         {followMap[post.userId] === 'accepted' ? <><UserCheck className="w-3 h-3" /> Following</> : followMap[post.userId] === 'pending' ? <><UserPlus className="w-3 h-3" /> Requested</> : <><UserPlus className="w-3 h-3" /> Follow</>}
                       </button>
                     )}
+                    {/* Show Message button only when we are mutual followers (status accepted). */}
+                    {post.userId !== user?.id && followMap[post.userId] === 'accepted' && (
+                      <button
+                        onClick={() => onMessageUser?.(post.userId)}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium bg-primary/10 text-primary hover:bg-primary/15 transition-colors"
+                        aria-label={`Message ${post.userName}`}
+                      >
+                        <MessageCircle className="w-3 h-3" /> Message
+                      </button>
+                    )}
                     {post.userId !== user?.id && (
                       <div className="relative">
                         <button onClick={() => setReportMenuOpen(reportMenuOpen === post.id ? null : post.id)} className="p-1.5 rounded-full hover:bg-muted transition-colors">
